@@ -5,29 +5,44 @@ import { revalidatePath } from 'next/cache';
 
 export async function getUserProjects() {
   const supabase = createClient();
-
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'You must be logged in to view projects.' };
+  if (!user) return [];
 
-  const { data: projects, error } = await supabase
+  const { data } = await supabase
     .from('projects')
-    .select('id, name, original_image_url, updated_at')
+    .select('*')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false });
 
-  if (error) return { error: error.message };
-  return { projects };
+  return data || [];
 }
 
-export async function deleteProject(projectId: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-    
-    if (error) return { success: false, message: error.message };
+export async function saveProject(id: string, name: string, canvasData: any, imageUrl: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
 
-    revalidatePath('/dashboard'); // Refresh the dashboard data
-    return { success: true, message: 'Project deleted successfully.' };
+  const payload = {
+    name,
+    user_id: user.id,
+    canvas_data: canvasData,
+    original_image_url: imageUrl,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = id === 'new' 
+    ? await supabase.from('projects').insert([payload]).select().single()
+    : await supabase.from('projects').update(payload).eq('id', id).select().single();
+
+  if (error) throw error;
+  revalidatePath('/dashboard');
+  return data;
+}
+
+export async function deleteProject(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) return { success: false, message: error.message };
+  revalidatePath('/dashboard');
+  return { success: true };
 }

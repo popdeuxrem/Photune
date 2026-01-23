@@ -1,42 +1,48 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { Canvas } from './Canvas';
 import { Toolbar } from './Toolbar';
 import { Header } from './Header';
 import { JobStatusPanel } from './JobStatusPanel';
 
-type ProjectData = {
-  id: string;
-  name: string;
-  canvas_data: object;
-};
-
-type EditorClientProps = {
+interface EditorClientProps {
   projectId: string;
-  initialProjectData: ProjectData | null;
-};
+  initialProjectData: any;
+}
 
 export function EditorClient({ projectId, initialProjectData }: EditorClientProps) {
   const { fabricCanvas, saveState } = useAppStore();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (fabricCanvas && initialProjectData) {
+    if (fabricCanvas && initialProjectData?.canvas_data) {
       fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
         fabricCanvas.renderAll();
-        saveState('initial-load');
+        // Ensure background image is handled correctly if it exists as a URL
+        const bg = fabricCanvas.backgroundImage as fabric.Image;
+        if (bg && bg.src) {
+           fabric.Image.fromURL(bg.src, (img) => {
+              fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+           }, { crossOrigin: 'anonymous' });
+        }
+        setIsReady(true);
       });
+    } else if (fabricCanvas) {
+      setIsReady(true);
     }
-  }, [fabricCanvas, initialProjectData, saveState]);
+  }, [fabricCanvas, initialProjectData]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-200">
-      <Header projectId={projectId} />
+    <div className="flex flex-col h-screen bg-[#1a1a1a] text-white">
+      <Header projectId={projectId} projectName={initialProjectData?.name || 'Untitled'} />
       <div className="flex flex-1 overflow-hidden">
         <Toolbar />
-        <main className="flex-1 p-4 flex items-center justify-center bg-gray-800/50">
-          <div className="shadow-2xl"><Canvas /></div>
+        <main className="flex-1 relative flex items-center justify-center p-8 bg-zinc-900 overflow-auto">
+          <div className="shadow-2xl bg-white border border-zinc-700">
+            <Canvas />
+          </div>
         </main>
       </div>
       <JobStatusPanel />

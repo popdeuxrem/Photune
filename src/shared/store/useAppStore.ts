@@ -1,38 +1,27 @@
 import { create } from 'zustand';
 import { fabric } from 'fabric';
 
-// Define types for our state
-type JobStatus = 'processing' | 'completed' | 'failed';
+type Job = { id: number; text: string; status: 'processing' | 'completed' | 'failed' };
 
-type Job = {
-  id: number;
-  text: string;
-  status: JobStatus;
-};
-
-type AppState = {
+interface AppState {
   fabricCanvas: fabric.Canvas | null;
   activeObject: fabric.Object | null;
   history: string[];
   historyIndex: number;
   jobs: Job[];
-};
-
-type AppActions = {
   setFabricCanvas: (canvas: fabric.Canvas) => void;
-  setActiveObject: (object: fabric.Object | null) => void;
-  saveState: (source?: string) => void;
+  setActiveObject: (obj: fabric.Object | null) => void;
+  addJob: (job: Job) => void;
+  updateJob: (id: number, status: Job['status'], text?: string) => void;
+  removeJob: (id: number) => void;
+  saveState: () => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
-  addJob: (job: Job) => void;
-  updateJob: (jobId: number, status: JobStatus, text?: string) => void;
-  removeJob: (jobId: number) => void;
-  clearCompletedJobs: () => void;
-};
+}
 
-export const useAppStore = create<AppState & AppActions>((set, get) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   fabricCanvas: null,
   activeObject: null,
   history: [],
@@ -40,61 +29,49 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   jobs: [],
 
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
-  setActiveObject: (object) => set({ activeObject: object }),
+  setActiveObject: (obj) => set({ activeObject: obj }),
+  
+  addJob: (job) => set((state) => ({ jobs: [...state.jobs, job] })),
+  updateJob: (id, status, text) => set((state) => ({
+    jobs: state.jobs.map(j => j.id === id ? { ...j, status, text: text || j.text } : j)
+  })),
+  removeJob: (id) => set((state) => ({ jobs: state.jobs.filter(j => j.id !== id) })),
 
   saveState: () => {
     const canvas = get().fabricCanvas;
     if (!canvas) return;
-    const currentState = get().history[get().historyIndex];
-    const newState = JSON.stringify(canvas.toJSON());
-    if (currentState === newState) return;
+    const json = JSON.stringify(canvas.toJSON());
+    const { history, historyIndex } = get();
+    
+    if (history[historyIndex] === json) return;
 
-    const newHistory = get().history.slice(0, get().historyIndex + 1);
-    newHistory.push(newState);
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(json);
     set({ history: newHistory, historyIndex: newHistory.length - 1 });
   },
 
   undo: () => {
-    const canvas = get().fabricCanvas;
-    if (get().canUndo()) {
-      const newIndex = get().historyIndex - 1;
-      const prevState = JSON.parse(get().history[newIndex]);
-      canvas?.loadFromJSON(prevState, () => {
-        canvas.renderAll();
-        const bgImage = canvas.backgroundImage;
-        if (bgImage && typeof bgImage !== 'string' && bgImage.src) {
-            canvas.setBackgroundImage(bgImage.src, canvas.renderAll.bind(canvas));
-        }
+    const { fabricCanvas, history, historyIndex } = get();
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      fabricCanvas?.loadFromJSON(history[prevIndex], () => {
+        fabricCanvas.renderAll();
+        set({ historyIndex: prevIndex });
       });
-      set({ historyIndex: newIndex });
     }
   },
 
   redo: () => {
-    const canvas = get().fabricCanvas;
-    if (get().canRedo()) {
-      const newIndex = get().historyIndex + 1;
-      const nextState = JSON.parse(get().history[newIndex]);
-      canvas?.loadFromJSON(nextState, () => {
-        canvas.renderAll();
-        const bgImage = canvas.backgroundImage;
-        if (bgImage && typeof bgImage !== 'string' && bgImage.src) {
-            canvas.setBackgroundImage(bgImage.src, canvas.renderAll.bind(canvas));
-        }
+    const { fabricCanvas, history, historyIndex } = get();
+    if (historyIndex < history.length - 1) {
+      const nextIndex = historyIndex + 1;
+      fabricCanvas?.loadFromJSON(history[nextIndex], () => {
+        fabricCanvas.renderAll();
+        set({ historyIndex: nextIndex });
       });
-      set({ historyIndex: newIndex });
     }
   },
 
   canUndo: () => get().historyIndex > 0,
   canRedo: () => get().historyIndex < get().history.length - 1,
-
-  addJob: (job) => set((state) => ({ jobs: [...state.jobs, job] })),
-  updateJob: (jobId, status, text) => {
-    set((state) => ({
-      jobs: state.jobs.map((j) => (j.id === jobId ? { ...j, status, text: text || j.text } : j)),
-    }));
-  },
-  removeJob: (jobId) => set((state) => ({ jobs: state.jobs.filter((j) => j.id !== jobId) })),
-  clearCompletedJobs: () => set((state) => ({ jobs: state.jobs.filter((j) => j.status === 'processing') })),
 }));

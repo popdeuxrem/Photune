@@ -1,38 +1,34 @@
-// This module provides client-side functions to interact with the Puter.js AI.
-// It uses a global `Puter` object injected by the script in `layout.tsx`.
-declare const Puter: any;
+/**
+ * Puter.js Free AI Integration
+ * Injected via <script> in layout.tsx
+ */
+declare const puter: any;
 
-async function getPuterInstance() {
-    if (typeof Puter === 'undefined') {
-        // Wait up to 2 seconds for the script to load
-        for (let i = 0; i < 20; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            if (typeof Puter !== 'undefined') return new Puter();
-        }
-        throw new Error("Puter.js script could not be loaded.");
+export async function getAiSuggestion(text: string, tone: string = 'professional'): Promise<string> {
+    try {
+        const prompt = `Rewrite this text to be ${tone}. Return ONLY the rewritten text: "${text}"`;
+        const response = await puter.ai.chat(prompt);
+        return response.toString().trim();
+    } catch (error) {
+        console.error("Puter AI Error:", error);
+        throw new Error("AI Rewrite failed. Ensure Puter.js is loaded.");
     }
-    return new Puter();
 }
 
-/**
- * Rewrites the given text to match a specific tone.
- * @param text The original text to rewrite.
- * @param tone The desired tone (e.g., 'professional', 'casual').
- * @returns A promise that resolves to the rewritten text.
- */
-export const rewriteText = async (text: string, tone: string): Promise<string> => {
-    const puter = await getPuterInstance();
-    const prompt = `Rewrite the following text to have a more ${tone} tone. Respond with ONLY the rewritten text itself, without any introductory phrases. Text: "${text}"`;
-    return await puter.ai.chat(prompt);
-};
+export async function getVisualCaption(imageElement: HTMLImageElement): Promise<string> {
+    try {
+        // Convert image to base64 for Puter
+        const canvas = document.createElement('canvas');
+        canvas.width = imageElement.width;
+        canvas.height = imageElement.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(imageElement, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg');
 
-/**
- * Generates a descriptive caption for an image using GPT-4o Vision.
- * @param imageUrl The URL of the image to analyze.
- * @returns A promise that resolves to the generated caption.
- */
-export const generateCaption = async (imageUrl: string): Promise<string> => {
-    const puter = await getPuterInstance();
-    const prompt = "Generate a concise and descriptive caption for this image, suitable for social media or as alt-text.";
-    return await puter.ai.chat(prompt, imageUrl);
-};
+        const response = await puter.ai.chat("Describe this image in one sentence.", dataUrl);
+        return response.toString().trim();
+    } catch (error) {
+        console.error("Puter Vision Error:", error);
+        return "Failed to generate caption.";
+    }
+}
