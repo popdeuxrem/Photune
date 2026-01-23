@@ -26,7 +26,7 @@ export function Toolbar() {
     
     try {
       const url = URL.createObjectURL(file);
-      fabric.Image.fromURL(url, async (img) => {
+      fabric.Image.fromURL(url, (img) => {
         fabricCanvas.clear();
         fabricCanvas.setDimensions({ 
           width: img.width || 800, 
@@ -37,24 +37,26 @@ export function Toolbar() {
         });
         
         updateJob(id, 'processing', 'Extracting Text (OCR)...');
-        const results = await runOCR(file);
         
-        results.forEach(res => {
-          const t = new fabric.Textbox(res.text, { 
-            ...res, 
-            fontFamily: 'sans-serif', 
-            fill: '#000000',
-            backgroundColor: 'rgba(255,255,255,0.5)' // Highlight for user
+        // Run OCR in background
+        runOCR(file).then((results) => {
+          results.forEach(res => {
+            const t = new fabric.Textbox(res.text, { 
+              ...res, 
+              fontFamily: 'sans-serif', 
+              fill: '#000000',
+              backgroundColor: 'rgba(255,255,255,0.5)' 
+            });
+            (t as any).isImporting = true;
+            fabricCanvas.add(t);
+            (t as any).isImporting = false;
           });
-          (t as any).isImporting = true;
-          fabricCanvas.add(t);
-          (t as any).isImporting = false;
-        });
 
-        fabricCanvas.renderAll();
-        saveState();
-        updateJob(id, 'completed', 'Analysis Complete!');
-        setTimeout(() => removeJob(id), 2000);
+          fabricCanvas.renderAll();
+          saveState();
+          updateJob(id, 'completed', 'Analysis Complete!');
+          setTimeout(() => removeJob(id), 2000);
+        });
       }, { crossOrigin: 'anonymous' });
     } catch (err) {
       updateJob(id, 'failed', 'Upload failed.');
@@ -126,8 +128,8 @@ export function Toolbar() {
 
     try {
       const res = await fetch('/api/ai/workers', {
-        method: 'POST',
-        body: JSON.stringify({ task: 'image-gen', prompt: { text: prompt } })
+        method: 'POST', 
+        body: JSON.stringify({ task: 'image-gen', prompt: { text: prompt } }) 
       });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -144,6 +146,20 @@ export function Toolbar() {
     } finally {
       setTimeout(() => removeJob(id), 3000);
     }
+  };
+
+  const addNewText = () => {
+    if (!fabricCanvas) return;
+    const txt = new fabric.Textbox('New Text', { 
+      left: 100, 
+      top: 100, 
+      width: 200, 
+      fontSize: 24, 
+      fontFamily: 'sans-serif' 
+    });
+    fabricCanvas.add(txt);
+    fabricCanvas.setActiveObject(txt);
+    fabricCanvas.requestRenderAll();
   };
 
   return (
@@ -172,10 +188,7 @@ export function Toolbar() {
 
       <div className="space-y-2">
         <Label className="text-[10px] uppercase font-black text-zinc-400 tracking-tighter">3. Content</Label>
-        <Button className="w-full justify-start gap-2" variant="outline" onClick={() => {
-          const txt = new fabric.Textbox('New Text', { left: 100, top: 100, width: 200, fontSize: 24, fontFamily: 'sans-serif' });
-          fabricCanvas?.add(txt).setActiveObject(txt);
-        }}>
+        <Button className="w-full justify-start gap-2" variant="outline" onClick={addNewText}>
           <Type size={16} /> New Text Box
         </Button>
         <Button className="w-full justify-start gap-2" variant="outline" onClick={() => setAiOpen(true)} disabled={!activeObject}>

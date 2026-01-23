@@ -6,6 +6,7 @@ import { Canvas } from './Canvas';
 import { Toolbar } from './Toolbar';
 import { Header } from './Header';
 import { JobStatusPanel } from './JobStatusPanel';
+import { fabric } from 'fabric';
 
 export function EditorClient({ projectId, initialProjectData }: { projectId: string; initialProjectData: any }) {
   const { fabricCanvas, saveState } = useAppStore();
@@ -18,13 +19,19 @@ export function EditorClient({ projectId, initialProjectData }: { projectId: str
       
       fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
         fabricCanvas.renderAll();
+        
         // Handle background image crossOrigin if it was lost during serialization
+        // Use getSrc() as Fabric.Image does not have a public 'src' property in its type definition
         const bg = fabricCanvas.backgroundImage as fabric.Image;
-        if (bg && bg.src) {
-           fabric.Image.fromURL(bg.src, (img) => {
-              fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-           }, { crossOrigin: 'anonymous' });
+        if (bg && typeof bg.getSrc === 'function') {
+           const src = bg.getSrc();
+           if (src) {
+              fabric.Image.fromURL(src, (img) => {
+                 fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+              }, { crossOrigin: 'anonymous' });
+           }
         }
+        
         (fabricCanvas as any).isImporting = false;
         saveState();
       });

@@ -17,29 +17,30 @@ export function Canvas() {
       height: 600,
       backgroundColor: '#ffffff',
       preserveObjectStacking: true,
-      stopContextMenu: true, // Prevents browser menu on right click
+      stopContextMenu: true, 
     });
 
-    const handleSelection = (e: any) => {
+    const handleSelection = (e: fabric.IEvent) => {
       setActiveObject(e.selected ? e.selected[0] : null);
     };
 
-    // Attach Event Listeners
-    canvas.on({
-      'selection:created': handleSelection,
-      'selection:updated': handleSelection,
-      'selection:cleared': () => setActiveObject(null),
-      'object:modified': () => saveState(),
-      'object:added': (e: any) => {
-        // Prevents history entry when objects are added via OCR/initial load
-        if (!e.target?.isImporting) {
-          saveState();
-        }
-      },
-      // Optional: Handle object scaling/moving for real-time state if needed
-      'object:moving': (e: any) => {
-          e.target.setCoords();
-      },
+    // Attach Event Listeners individually to satisfy TS definitions
+    canvas.on('selection:created', handleSelection);
+    canvas.on('selection:updated', handleSelection);
+    canvas.on('selection:cleared', () => setActiveObject(null));
+    canvas.on('object:modified', () => saveState());
+    
+    canvas.on('object:added', (e: any) => {
+      // Prevents history entry when objects are added via OCR/initial load
+      if (e.target && !e.target.isImporting) {
+        saveState();
+      }
+    });
+
+    canvas.on('object:moving', (e: any) => {
+      if (e.target) {
+        e.target.setCoords();
+      }
     });
 
     // Keyboard Delete Support
@@ -47,7 +48,7 @@ export function Canvas() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && 
           !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')) {
         const active = canvas.getActiveObject();
-        if (active && !active.isEditing) {
+        if (active && !(active as any).isEditing) {
           canvas.remove(active);
           canvas.discardActiveObject().renderAll();
         }
