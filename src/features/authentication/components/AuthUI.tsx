@@ -7,20 +7,24 @@ import { useEffect, useState } from 'react';
 
 export function AuthUI() {
   const supabase = createClient();
-  const [origin, setOrigin] = useState('');
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Set the origin only after the component has mounted in the browser
-    setOrigin(window.location.origin);
+    // Construct the absolute URL for the callback
+    const url = `${window.location.origin}/api/auth/callback`;
+    setAuthUrl(url);
   }, []);
+
+  // Don't render the Auth UI until the URL is generated (prevents mismatch)
+  if (!authUrl) return <div className="h-[300px] flex items-center justify-center">Loading Auth...</div>;
 
   return (
     <Auth
       supabaseClient={supabase}
       appearance={{ theme: ThemeSupa }}
       providers={['google', 'github']}
-      // Only provide the redirect URL once we are in the browser context
-      redirectTo={origin ? `${origin}/api/auth/callback` : undefined}
+      redirectTo={authUrl}
+      onlyThirdPartyProviders={true}
     />
   );
 }
