@@ -42,9 +42,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!canvas) return;
     const json = JSON.stringify(canvas.toJSON());
     const { history, historyIndex } = get();
-    
     if (history[historyIndex] === json) return;
-
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(json);
     set({ history: newHistory, historyIndex: newHistory.length - 1 });
@@ -53,10 +51,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   undo: () => {
     const { fabricCanvas, history, historyIndex } = get();
     if (historyIndex > 0) {
-      const prevIndex = historyIndex - 1;
-      fabricCanvas?.loadFromJSON(history[prevIndex], () => {
+      const prev = historyIndex - 1;
+      fabricCanvas?.loadFromJSON(history[prev], () => {
         fabricCanvas.renderAll();
-        set({ historyIndex: prevIndex });
+        set({ historyIndex: prev });
       });
     }
   },
@@ -64,10 +62,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   redo: () => {
     const { fabricCanvas, history, historyIndex } = get();
     if (historyIndex < history.length - 1) {
-      const nextIndex = historyIndex + 1;
-      fabricCanvas?.loadFromJSON(history[nextIndex], () => {
+      const next = historyIndex + 1;
+      fabricCanvas?.loadFromJSON(history[next], () => {
         fabricCanvas.renderAll();
-        set({ historyIndex: nextIndex });
+        set({ historyIndex: next });
       });
     }
   },

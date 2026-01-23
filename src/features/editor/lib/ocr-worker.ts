@@ -1,40 +1,22 @@
 import { createWorker } from 'tesseract.js';
 
-export type OCRResult = {
-  text: string;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  fontSize: number;
-};
-
-export async function runOCR(imageSource: string | File): Promise<OCRResult[]> {
+export async function runOCR(imageSource: string | File) {
   const worker = await createWorker('eng');
-  
   const { data: { blocks } } = await worker.recognize(imageSource);
   
-  const results: OCRResult[] = [];
-
-  blocks?.forEach(block => {
-    block.paragraphs.forEach(para => {
-      para.lines.forEach(line => {
-        const bbox = line.bbox;
-        // Basic heuristic for font size based on line height
-        const fontSize = Math.round((bbox.y2 - bbox.y1) * 0.8);
-        
-        results.push({
-          text: line.text.trim(),
-          left: bbox.x1,
-          top: bbox.y1,
-          width: bbox.x2 - bbox.x1,
-          height: bbox.y2 - bbox.y1,
-          fontSize: fontSize > 0 ? fontSize : 16
-        });
-      });
-    });
-  });
+  const results = blocks?.flatMap(block => 
+    block.paragraphs.flatMap(para => 
+      para.lines.map(line => ({
+        text: line.text.trim(),
+        left: line.bbox.x1,
+        top: line.bbox.y1,
+        width: line.bbox.x2 - line.bbox.x1,
+        height: line.bbox.y2 - line.bbox.y1,
+        fontSize: Math.round((line.bbox.y2 - line.bbox.y1) * 0.8)
+      }))
+    )
+  );
 
   await worker.terminate();
-  return results;
+  return results || [];
 }

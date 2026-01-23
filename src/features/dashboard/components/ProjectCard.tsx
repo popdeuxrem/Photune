@@ -1,30 +1,27 @@
 'use client';
 
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { Trash2, Edit } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
-type ProjectCardProps = {
-    project: { id: string; name: string; original_image_url: string; updated_at: string };
-    onDelete: (id: string) => void;
-}
-
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
-  const lastUpdated = new Date(project.updated_at).toLocaleDateString();
-
+export function ProjectCard({ project, onDelete }: { project: any; onDelete: (id: string) => void }) {
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="p-4"><CardTitle>{project.name}</CardTitle></CardHeader>
-      <CardContent className="p-0 flex-grow">
-        <Link href={`/editor/${project.id}`}>
-          <div className="aspect-video bg-gray-100 relative"><Image src={project.original_image_url} alt={project.name} fill /></div>
-        </Link>
+    <Card className="overflow-hidden group">
+      <CardContent className="p-0 aspect-video bg-zinc-100 relative">
+        {project.original_image_url && (
+          <Image src={project.original_image_url} alt={project.name} fill className="object-cover" />
+        )}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <Button asChild size="sm" variant="secondary"><Link href={`/editor/${project.id}`}><Edit className="w-4 h-4 mr-1" /> Edit</Link></Button>
+        </div>
       </CardContent>
       <CardFooter className="p-4 flex justify-between items-center">
-        <p className="text-xs text-gray-500">Updated: {lastUpdated}</p>
-        <Button variant="destructive" size="sm" onClick={() => onDelete(project.id)}>Delete</Button>
+        <span className="font-medium truncate">{project.name}</span>
+        <Button size="icon" variant="ghost" className="text-zinc-400 hover:text-red-500" onClick={() => onDelete(project.id)}>
+          <Trash2 className="w-4 h-4" />
+        </Button>
       </CardFooter>
     </Card>
   );

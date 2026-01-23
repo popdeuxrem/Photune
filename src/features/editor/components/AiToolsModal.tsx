@@ -7,82 +7,63 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { rewriteText, generateCaption } from '@/shared/lib/api';
+import { getAiSuggestion } from '@/shared/lib/api';
 import { fabric } from 'fabric';
 
-type AiToolsModalProps = { isOpen: boolean; setIsOpen: (open: boolean) => void; };
-
-export function AiToolsModal({ isOpen, setIsOpen }: AiToolsModalProps) {
+export function AiToolsModal({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (o: boolean) => void }) {
   const { fabricCanvas, activeObject } = useAppStore();
   const { toast } = useToast();
-  const [rewriteTone, setRewriteTone] = useState('professional');
-  const [rewrittenText, setRewrittenText] = useState('');
-  const [caption, setCaption] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [tone, setTone] = useState('professional');
+  const [result, setResult] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRewrite = async () => {
-    const textObject = activeObject as fabric.Textbox;
-    if (!textObject || !textObject.text) return toast({ title: 'No text selected.', variant: 'destructive' });
-    setIsProcessing(true);
-    setRewrittenText('');
+    if (!activeObject || !('text' in activeObject)) return;
+    setLoading(true);
     try {
-      setRewrittenText(await rewriteText(textObject.text, rewriteTone));
-    } catch (error) { toast({ title: 'Rewrite Failed', variant: 'destructive' }) }
-    finally { setIsProcessing(false) }
+      const text = (activeObject as fabric.Textbox).text || '';
+      const suggestion = await getAiSuggestion(text, tone);
+      setResult(suggestion);
+    } catch (e) {
+      toast({ title: "AI Error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const applyRewrite = () => {
-    if (activeObject && rewrittenText) {
-      (activeObject as fabric.Textbox).set('text', rewrittenText);
+  const applyText = () => {
+    if (activeObject && 'text' in activeObject) {
+      (activeObject as fabric.Textbox).set('text', result);
       fabricCanvas?.renderAll();
-      toast({ title: 'Text applied!' });
       setIsOpen(false);
     }
   };
 
-  const handleCaption = async () => {
-    const bgImage = fabricCanvas?.backgroundImage as fabric.Image;
-    if (!bgImage?.getSrc()) return toast({ title: 'No image on canvas.', variant: 'destructive' });
-    setIsProcessing(true);
-    setCaption('');
-    try {
-      setCaption(await generateCaption(bgImage.getSrc()));
-    } catch (error) { toast({ title: 'Caption Failed', variant: 'destructive' }) }
-    finally { setIsProcessing(false) }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>AI Assistant</DialogTitle><DialogDescription>Enhance your content with AI.</DialogDescription></DialogHeader>
-        <div className="grid md:grid-cols-2 gap-6 pt-4">
-          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border">
-            <h3 className="font-semibold">AI Rewriter</h3>
-            {/* FIXED: The string is now wrapped in curly braces to satisfy the linter */}
-            <p className='text-sm truncate'>
-              {'Original: "'}
-              {activeObject && 'text' in activeObject ? (activeObject as fabric.Textbox).text : 'None'}
-              {'"'}
-            </p>
-            <div className="flex gap-2">
-              <Select onValueChange={setRewriteTone} defaultValue="professional">
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="casual">Casual</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleRewrite} disabled={!activeObject || isProcessing}>Rewrite</Button>
-            </div>
-            <Textarea value={rewrittenText} placeholder="Rewritten text..." />
-            <Button onClick={applyRewrite} disabled={!rewrittenText}>Apply Text</Button>
-          </div>
-          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border">
-            <h3 className="font-semibold">AI Captioner</h3>
-            <Button onClick={handleCaption} disabled={isProcessing} className="w-full">Generate Caption</Button>
-            <Textarea value={caption} placeholder="Generated caption..." />
-            <Button onClick={() => navigator.clipboard.writeText(caption)} disabled={!caption} variant="outline">Copy</Button>
-          </div>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>AI Writing Assistant</DialogTitle>
+          <DialogDescription>Enhance or rewrite your selected text.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-4">
+          <Select onValueChange={setTone} defaultValue={tone}>
+            <SelectTrigger><SelectValue placeholder="Select Tone" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="professional">Professional</SelectItem>
+              <SelectItem value="casual">Casual</SelectItem>
+              <SelectItem value="friendly">Friendly</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleRewrite} disabled={loading || !activeObject} className="w-full">
+            {loading ? 'Generating...' : 'Rewrite Selection'}
+          </Button>
+          {result && (
+            <>
+              <Textarea value={result} onChange={(e) => setResult(e.target.value)} rows={4} />
+              <Button onClick={applyText} className="w-full" variant="secondary">Apply Changes</Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
