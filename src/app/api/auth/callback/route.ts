@@ -25,14 +25,15 @@ export async function GET(request: Request) {
       }
     )
     
+    // Exchange the temporary code for a long-lived session
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
-      // In production, force an absolute redirect to the dashboard
+      // Force an absolute redirect to /dashboard on the same origin
       return NextResponse.redirect(`${origin}/dashboard`)
     }
   }
 
-  // Error case
-  return NextResponse.redirect(`${origin}/auth?error=auth_failed`)
+  // If exchange fails, return to login with error state
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
 }

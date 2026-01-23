@@ -16,14 +16,14 @@ export function createClient() {
           try {
             cookieStore.set({ name, value, ...options })
           } catch (error) {
-            // This can be ignored if called from a Server Action or Route Handler
+            // Handled internally by Next.js when called in Server Components
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options })
           } catch (error) {
-            // This can be ignored if called from a Server Action or Route Handler
+            // Handled internally by Next.js when called in Server Components
           }
         },
       },

@@ -28,16 +28,19 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
+                    request.nextUrl.pathname.startsWith('/signup') ||
+                    request.nextUrl.pathname.startsWith('/auth')
+
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') || 
                           request.nextUrl.pathname.startsWith('/editor')
 
-  // If trying to access dashboard/editor without user, go to /auth
+  // Case 1: No user on a protected route -> Go to Login
   if (!user && isProtectedRoute) {
-    return NextResponse.redirect(new URL('/auth', request.url))
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // If trying to access /auth with a valid user, go to /dashboard
+  // Case 2: Valid user on an auth page -> Go to Dashboard
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }

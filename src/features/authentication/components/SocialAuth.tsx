@@ -8,9 +8,18 @@ export function SocialAuth() {
   const supabase = createClient();
 
   const handleLogin = async (provider: 'github' | 'google') => {
+    // Generate the absolute callback URL based on current environment (local or vercel)
+    const callbackUrl = `${window.location.origin}/api/auth/callback`;
+    
     await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/api/auth/callback` }
+      options: { 
+        redirectTo: callbackUrl,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
+      }
     });
   };
 

@@ -1,17 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { 
-  Sparkles, 
-  Eraser, 
-  Type, 
-  Sliders, 
-  Stamp, 
-  Info 
-} from 'lucide-react';
-import { AiToolsPanel } from './AiToolsPanel';
-import { EffectsPanel } from './EffectsPanel';
+import { Sparkles, Eraser, Sliders, Stamp, Info } from 'lucide-react';
+import { AiToolsPanel } from './Panels/AiToolsPanel';
+import { EffectsPanel } from './Panels/EffectsPanel';
 import { RemovePanel } from './RemovePanel';
 import { StampPanel } from './StampPanel';
 import { InfoPanel } from './InfoPanel';
@@ -39,7 +31,6 @@ export function Sidebar() {
           <TabsContent value="stamps" className="m-0 mt-2"><StampPanel /></TabsContent>
           <TabsContent value="info" className="m-0 mt-2"><InfoPanel /></TabsContent>
           
-          {/* Always show properties of selection at the bottom if something is selected */}
           {activeObject && (
             <div className="pt-4 border-t mt-4 animate-in fade-in slide-in-from-bottom-2">
                <TextProperties />
