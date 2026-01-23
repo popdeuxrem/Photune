@@ -40,21 +40,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveState: () => {
     const canvas = get().fabricCanvas;
     if (!canvas) return;
-    const json = JSON.stringify(canvas.toJSON());
+    const json = JSON.stringify(canvas.toJSON(['isImporting', 'selectable', 'hasControls']));
     const { history, historyIndex } = get();
+    
+    // Don't save if state hasn't changed
     if (history[historyIndex] === json) return;
+
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(json);
-    set({ history: newHistory, historyIndex: newHistory.length - 1 });
+    
+    // Limit history to 50 steps to save memory
+    if (newHistory.length > 50) newHistory.shift();
+
+    set({ 
+      history: newHistory, 
+      historyIndex: newHistory.length - 1 
+    });
   },
 
   undo: () => {
     const { fabricCanvas, history, historyIndex } = get();
     if (historyIndex > 0) {
-      const prev = historyIndex - 1;
-      fabricCanvas?.loadFromJSON(history[prev], () => {
+      const prevIndex = historyIndex - 1;
+      const state = history[prevIndex];
+      fabricCanvas?.loadFromJSON(state, () => {
         fabricCanvas.renderAll();
-        set({ historyIndex: prev });
+        set({ historyIndex: prevIndex });
       });
     }
   },
@@ -62,10 +73,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   redo: () => {
     const { fabricCanvas, history, historyIndex } = get();
     if (historyIndex < history.length - 1) {
-      const next = historyIndex + 1;
-      fabricCanvas?.loadFromJSON(history[next], () => {
+      const nextIndex = historyIndex + 1;
+      const state = history[nextIndex];
+      fabricCanvas?.loadFromJSON(state, () => {
         fabricCanvas.renderAll();
-        set({ historyIndex: next });
+        set({ historyIndex: nextIndex });
       });
     }
   },

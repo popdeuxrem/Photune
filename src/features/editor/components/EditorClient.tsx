@@ -1,52 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useAppStore } from '@/shared/store/useAppStore';
-import { Canvas } from './Canvas';
-import { Toolbar } from './Toolbar';
+import { Sidebar } from './Toolbar/Sidebar';
 import { Header } from './Header';
+import { Canvas } from './Canvas';
 import { JobStatusPanel } from './JobStatusPanel';
-import { fabric } from 'fabric';
 
 export function EditorClient({ projectId, initialProjectData }: { projectId: string; initialProjectData: any }) {
-  const { fabricCanvas, saveState } = useAppStore();
-
-  useEffect(() => {
-    // Load existing project data if available
-    if (fabricCanvas && initialProjectData?.canvas_data) {
-      // Set importing flag to true to avoid polluting history stack on load
-      (fabricCanvas as any).isImporting = true;
-      
-      fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
-        fabricCanvas.renderAll();
-        
-        // Handle background image crossOrigin if it was lost during serialization
-        // Use getSrc() as Fabric.Image does not have a public 'src' property in its type definition
-        const bg = fabricCanvas.backgroundImage as fabric.Image;
-        if (bg && typeof bg.getSrc === 'function') {
-           const src = bg.getSrc();
-           if (src) {
-              fabric.Image.fromURL(src, (img) => {
-                 fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-              }, { crossOrigin: 'anonymous' });
-           }
-        }
-        
-        (fabricCanvas as any).isImporting = false;
-        saveState();
-      });
-    }
-  }, [fabricCanvas, initialProjectData, saveState]);
-
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-100">
-      <Header projectId={projectId} projectName={initialProjectData?.name || 'New Project'} />
+    <div className="flex flex-col h-screen bg-zinc-100 overflow-hidden">
+      <Header projectId={projectId} projectName={initialProjectData?.name || 'Untitled Design'} />
       <div className="flex flex-1 overflow-hidden">
-        <Toolbar />
-        <main className="flex-1 relative flex items-center justify-center p-12 overflow-auto">
-          <div className="shadow-[0_20px_50px_rgba(0,0,0,0.2)] bg-white border border-zinc-200">
-            <Canvas />
-          </div>
+        <Sidebar />
+        <main className="flex-1 relative flex items-center justify-center p-8 overflow-auto bg-zinc-50">
+          <Canvas />
         </main>
       </div>
       <JobStatusPanel />
