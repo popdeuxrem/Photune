@@ -7,7 +7,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-[400px] space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black tracking-tight">Sign In</h1>
+          <h1 className="text-3xl font-black tracking-tight text-zinc-900">Sign In</h1>
           <p className="text-zinc-500 text-sm">Welcome back to phoTextAI</p>
         </div>
 
@@ -21,7 +21,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-sm text-zinc-500">
-          Don't have an account? <Link href="/signup" className="text-zinc-900 font-bold hover:underline">Sign Up</Link>
+          Don&apos;t have an account? <Link href="/signup" className="text-zinc-900 font-bold hover:underline">Sign Up</Link>
         </p>
       </div>
     </div>

@@ -7,7 +7,7 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-[400px] space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black tracking-tight">Get Started</h1>
+          <h1 className="text-3xl font-black tracking-tight text-zinc-900">Get Started</h1>
           <p className="text-zinc-500 text-sm">Create your free AI design studio account</p>
         </div>
 

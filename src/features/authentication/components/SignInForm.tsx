@@ -29,23 +29,44 @@ export function SignInForm() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast({ title: "Email required", description: "Please enter your email address first.", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Reset Link Sent", description: "Check your email for the recovery link." });
+    }
+  };
+
   return (
     <form onSubmit={handleSignIn} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="email">Email Address</Label>
-        <Input id="email" type="email" placeholder="name@company.com" required 
-               value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl" />
+        <Label htmlFor="email" className="text-zinc-700 font-semibold">Email Address</Label>
+        <Input id="email" type="email" placeholder="name@example.com" required 
+               value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl h-11 border-zinc-200" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label htmlFor="password">Password</Label>
-          <button type="button" className="text-xs text-zinc-500 hover:text-zinc-900 underline">Forgot password?</button>
+          <Label htmlFor="password", className="text-zinc-700 font-semibold">Password</Label>
+          <button 
+            type="button" 
+            onClick={handleResetPassword}
+            className="text-[11px] font-bold uppercase tracking-tighter text-zinc-400 hover:text-zinc-900 transition-colors"
+          >
+            Forgot password?
+          </button>
         </div>
         <Input id="password" type="password" required 
-               value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl" />
+               value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl h-11 border-zinc-200" />
       </div>
-      <Button type="submit" className="w-full h-11 rounded-xl bg-zinc-900" disabled={loading}>
-        {loading ? <Loader2 className="animate-spin" /> : "Sign In with Email"}
+      <Button type="submit" className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : "Sign In"}
       </Button>
     </form>
   );
