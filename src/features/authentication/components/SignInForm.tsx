@@ -48,12 +48,19 @@ export function SignInForm() {
     <form onSubmit={handleSignIn} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="email" className="text-zinc-700 font-semibold">Email Address</Label>
-        <Input id="email" type="email" placeholder="name@example.com" required 
-               value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl h-11 border-zinc-200" />
+        <Input 
+          id="email" 
+          type="email" 
+          placeholder="name@example.com" 
+          required 
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)} 
+          className="rounded-xl h-11 border-zinc-200" 
+        />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label htmlFor="password", className="text-zinc-700 font-semibold">Password</Label>
+          <Label htmlFor="password" className="text-zinc-700 font-semibold">Password</Label>
           <button 
             type="button" 
             onClick={handleResetPassword}
@@ -62,11 +69,21 @@ export function SignInForm() {
             Forgot password?
           </button>
         </div>
-        <Input id="password" type="password" required 
-               value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl h-11 border-zinc-200" />
+        <Input 
+          id="password" 
+          type="password" 
+          required 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)} 
+          className="rounded-xl h-11 border-zinc-200" 
+        />
       </div>
-      <Button type="submit" className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" disabled={loading}>
-        {loading ? <Loader2 className="animate-spin" /> : "Sign In"}
+      <Button 
+        type="submit" 
+        className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
+        disabled={loading}
+      >
+        {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Sign In"}
       </Button>
     </form>
   );
