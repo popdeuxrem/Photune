@@ -26,16 +26,19 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // This will refresh session if expired - required for Server Components
   const { data: { user } } = await supabase.auth.getUser()
 
-  // PROTECTED ROUTES: Redirect to /auth if not logged in
-  if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/editor'))) {
+  const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+  const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') || 
+                          request.nextUrl.pathname.startsWith('/editor')
+
+  // If trying to access dashboard/editor without user, go to /auth
+  if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/auth', request.url))
   }
 
-  // AUTH REVERSE PROTECTION: Redirect to /dashboard if logged in and trying to access /auth
-  if (user && request.nextUrl.pathname.startsWith('/auth')) {
+  // If trying to access /auth with a valid user, go to /dashboard
+  if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

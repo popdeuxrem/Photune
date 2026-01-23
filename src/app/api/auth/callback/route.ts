@@ -3,9 +3,10 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get('code')
+  const origin = requestUrl.origin
+
   if (code) {
     const cookieStore = cookies()
     const supabase = createServerClient(
@@ -25,12 +26,13 @@ export async function GET(request: Request) {
     )
     
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
-      // Return to the origin domain and go to dashboard
+      // In production, force an absolute redirect to the dashboard
       return NextResponse.redirect(`${origin}/dashboard`)
     }
   }
 
-  // Return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth?error=auth-code-error`)
+  // Error case
+  return NextResponse.redirect(`${origin}/auth?error=auth_failed`)
 }
