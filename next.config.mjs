@@ -6,14 +6,12 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
       { protocol: 'https', hostname: 'images.puter.com' },
       { protocol: 'https', hostname: '*.github.dev' },
+      { protocol: 'https', hostname: '*.vercel.app' },
     ],
   },
-  // Fabric 6+ is purely ESM. We transpile it to ensure compatibility.
-  transpilePackages: ['fabric'],
   webpack: (config, { isServer }) => {
-    // Newer Fabric versions still reference the 'canvas' module for node environments.
-    // We null it out for browser builds and Vercel deployments.
     if (!isServer) {
+      // Prevents Fabric.js from trying to use node-canvas in the browser/Vercel
       config.resolve.fallback = {
         ...config.resolve.fallback,
         canvas: false,
