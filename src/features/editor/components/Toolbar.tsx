@@ -20,72 +20,171 @@ export function Toolbar() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !fabricCanvas) return;
+    
     const id = Date.now();
     addJob({ id, text: 'Processing Image...', status: 'processing' });
     
-    const url = URL.createObjectURL(file);
-    fabric.Image.fromURL(url, async (img) => {
-      fabricCanvas.clear();
-      fabricCanvas.setDimensions({ width: img.width || 800, height: img.height || 600 });
-      fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-      
-      updateJob(id, 'processing', 'Extracting Text (OCR)...');
-      const results = await runOCR(file);
-      results.forEach(res => {
-        const t = new fabric.Textbox(res.text, { ...res, fontFamily: 'sans-serif', fill: '#000' });
-        (t as any).isImporting = true;
-        fabricCanvas.add(t);
-        (t as any).isImporting = false;
-      });
-      fabricCanvas.renderAll();
-      saveState();
-      updateJob(id, 'completed', 'Done!');
-      setTimeout(() => removeJob(id), 2000);
-    });
+    try {
+      const url = URL.createObjectURL(file);
+      fabric.Image.fromURL(url, async (img) => {
+        fabricCanvas.clear();
+        fabricCanvas.setDimensions({ 
+          width: img.width || 800, 
+          height: img.height || 600 
+        });
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+          crossOrigin: 'anonymous'
+        });
+        
+        updateJob(id, 'processing', 'Extracting Text (OCR)...');
+        const results = await runOCR(file);
+        
+        results.forEach(res => {
+          const t = new fabric.Textbox(res.text, { 
+            ...res, 
+            fontFamily: 'sans-serif', 
+            fill: '#000000',
+            backgroundColor: 'rgba(255,255,255,0.5)' // Highlight for user
+          });
+          (t as any).isImporting = true;
+          fabricCanvas.add(t);
+          (t as any).isImporting = false;
+        });
+
+        fabricCanvas.renderAll();
+        saveState();
+        updateJob(id, 'completed', 'Analysis Complete!');
+        setTimeout(() => removeJob(id), 2000);
+      }, { crossOrigin: 'anonymous' });
+    } catch (err) {
+      updateJob(id, 'failed', 'Upload failed.');
+    }
   };
 
   const handleClean = async () => {
     if (!fabricCanvas) return;
+    const bg = fabricCanvas.backgroundImage as fabric.Image;
+    if (!bg) return;
+
     const id = Date.now();
-    addJob({ id, text: 'Inpainting...', status: 'processing' });
+    addJob({ id, text: 'Cleaning original pixels...', status: 'processing' });
+    
     try {
       const mask = await generateMask(fabricCanvas);
-      const bg = (fabricCanvas.backgroundImage as fabric.Image).toDataURL({ format: 'png' });
-      const res = await fetch('/api/ai/inpaint', { method: 'POST', body: JSON.stringify({ image: bg, mask }) });
-      const blob = await res.blob();
-      fabric.Image.fromURL(URL.createObjectURL(blob), (img) => {
-        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-        saveState();
-        updateJob(id, 'completed', 'Cleaned!');
+      const originalImage = bg.toDataURL({ format: 'png' });
+      
+      const res = await fetch('/api/ai/inpaint', { 
+        method: 'POST', 
+        body: JSON.stringify({ image: originalImage, mask }) 
       });
-    } catch { updateJob(id, 'failed', 'Inpaint failed'); }
+
+      if (!res.ok) throw new Error();
+
+      const blob = await res.blob();
+      const cleanedUrl = URL.createObjectURL(blob);
+
+      fabric.Image.fromURL(cleanedUrl, (img) => {
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+          crossOrigin: 'anonymous'
+        });
+        saveState();
+        updateJob(id, 'completed', 'Ghost text removed!');
+      }, { crossOrigin: 'anonymous' });
+    } catch { 
+      updateJob(id, 'failed', 'Magic Erase failed.'); 
+    } finally {
+      setTimeout(() => removeJob(id), 3000);
+    }
   };
 
   const handleFontMatch = async () => {
-    if (!activeObject || !fabricCanvas) return;
+    if (!activeObject || !fabricCanvas || activeObject.type !== 'textbox') return;
+    
     const id = Date.now();
-    addJob({ id, text: 'Matching Font...', status: 'processing' });
-    const crop = activeObject.toDataURL({ format: 'png' });
-    const font = await matchFontFromCrop(crop);
-    (activeObject as fabric.Textbox).set('fontFamily', font);
-    fabricCanvas.renderAll();
-    updateJob(id, 'completed', `Matched: ${font}`);
+    addJob({ id, text: 'Matching Typography...', status: 'processing' });
+    
+    try {
+      const crop = activeObject.toDataURL({ format: 'png' });
+      const font = await matchFontFromCrop(crop);
+      (activeObject as fabric.Textbox).set('fontFamily', font);
+      fabricCanvas.renderAll();
+      saveState();
+      updateJob(id, 'completed', `Matched: ${font}`);
+    } catch {
+      updateJob(id, 'failed', 'Could not match font.');
+    } finally {
+      setTimeout(() => removeJob(id), 2000);
+    }
+  };
+
+  const handleGenerateBG = async () => {
+    const prompt = window.prompt("Describe a new background (e.g., 'Modern minimal office desk'):");
+    if (!prompt || !fabricCanvas) return;
+
+    const id = Date.now();
+    addJob({ id, text: 'AI Generation...', status: 'processing' });
+
+    try {
+      const res = await fetch('/api/ai/workers', {
+        method: 'POST',
+        body: JSON.stringify({ task: 'image-gen', prompt: { text: prompt } })
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      
+      fabric.Image.fromURL(url, (img) => {
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+          crossOrigin: 'anonymous'
+        });
+        saveState();
+        updateJob(id, 'completed', 'Background Updated!');
+      }, { crossOrigin: 'anonymous' });
+    } catch (err) {
+      updateJob(id, 'failed', 'Generation failed.');
+    } finally {
+      setTimeout(() => removeJob(id), 3000);
+    }
   };
 
   return (
-    <aside className="w-72 border-r bg-zinc-50 p-4 flex flex-col gap-6 overflow-y-auto">
-      <input type="file" ref={fileRef} hidden onChange={handleUpload} />
+    <aside className="w-72 border-r bg-white p-4 flex flex-col gap-6 overflow-y-auto">
+      <input type="file" ref={fileRef} hidden onChange={handleUpload} accept="image/*" />
+      
       <div className="space-y-2">
-        <Label className="text-[10px] uppercase font-bold text-zinc-400">Import</Label>
-        <Button className="w-full justify-start" variant="outline" onClick={() => fileRef.current?.click()}><Upload size={16} className="mr-2" /> Upload & OCR</Button>
+        <Label className="text-[10px] uppercase font-black text-zinc-400 tracking-tighter">1. Import & Analyze</Label>
+        <Button className="w-full justify-start gap-2" variant="outline" onClick={() => fileRef.current?.click()}>
+          <Upload size={16} /> Upload & Extract
+        </Button>
       </div>
+
       <div className="space-y-2">
-        <Label className="text-[10px] uppercase font-bold text-zinc-400">Magic Tools</Label>
-        <Button className="w-full justify-start" variant="secondary" onClick={handleClean}><Eraser size={16} className="mr-2 text-indigo-500" /> Magic Erase</Button>
-        <Button className="w-full justify-start" variant="secondary" onClick={handleFontMatch} disabled={!activeObject}><Palette size={16} className="mr-2 text-blue-500" /> Match Font</Button>
-        <Button className="w-full justify-start" variant="secondary" onClick={() => setAiOpen(true)} disabled={!activeObject}><Sparkles size={16} className="mr-2 text-amber-500" /> AI Rewrite</Button>
+        <Label className="text-[10px] uppercase font-black text-zinc-400 tracking-tighter">2. Magic Tools</Label>
+        <Button className="w-full justify-start gap-2" variant="secondary" onClick={handleClean}>
+          <Eraser size={16} className="text-indigo-600" /> Magic Erase Original
+        </Button>
+        <Button className="w-full justify-start gap-2" variant="secondary" onClick={handleFontMatch} disabled={!activeObject}>
+          <Palette size={16} className="text-blue-600" /> Match Font Style
+        </Button>
+        <Button className="w-full justify-start gap-2" variant="secondary" onClick={handleGenerateBG}>
+          <ImagePlus size={16} className="text-emerald-600" /> AI Background
+        </Button>
       </div>
+
+      <div className="space-y-2">
+        <Label className="text-[10px] uppercase font-black text-zinc-400 tracking-tighter">3. Content</Label>
+        <Button className="w-full justify-start gap-2" variant="outline" onClick={() => {
+          const txt = new fabric.Textbox('New Text', { left: 100, top: 100, width: 200, fontSize: 24, fontFamily: 'sans-serif' });
+          fabricCanvas?.add(txt).setActiveObject(txt);
+        }}>
+          <Type size={16} /> New Text Box
+        </Button>
+        <Button className="w-full justify-start gap-2" variant="outline" onClick={() => setAiOpen(true)} disabled={!activeObject}>
+          <Sparkles size={16} className="text-amber-500" /> AI Rewrite Selection
+        </Button>
+      </div>
+
       <TextProperties />
+      
       <AiToolsModal isOpen={aiOpen} setIsOpen={setAiOpen} />
     </aside>
   );

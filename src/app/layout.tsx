@@ -1,5 +1,8 @@
 import './globals.css';
+import { Inter } from 'next/font/google';
 import { Toaster } from '@/shared/components/ui/toaster';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
   title: 'phoTextAI - Magic Editor',
@@ -11,9 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <script src="https://js.puter.com/v2/" async></script>
-        <link href="https://fonts.googleapis.com/css2?family=Roboto&family=Playfair+Display&family=Merriweather&family=Montserrat&family=Open+Sans&family=Lobster&family=Courier+Prime&display=swap" rel="stylesheet" />
       </head>
-      <body>
+      <body className={inter.className}>
         {children}
         <Toaster />
       </body>
