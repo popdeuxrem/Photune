@@ -1,23 +1,33 @@
 import FormData from 'form-data';
 import Mailgun from 'mailgun.js';
 
-const mailgun = new Mailgun(FormData);
-const client = process.env.MAILGUN_API_KEY 
-  ? mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY }) 
-  : null;
-
 export async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
+  const apiKey = process.env.MAILGUN_API_KEY;
   const domain = process.env.MAILGUN_DOMAIN;
   const from = process.env.MAILGUN_FROM_EMAIL || `postmaster@${domain}`;
 
-  console.log(`[Mailgun] Attempting to send to: ${to} | Subject: ${subject}`);
+  // DIAGNOSTIC LOGS
+  console.log("--- Mailgun Debug Info ---");
+  console.log("To:", to);
+  console.log("API Key Present:", !!apiKey);
+  console.log("Domain Present:", !!domain);
+  console.log("Domain Value:", domain);
 
-  if (!client || !domain) {
-    console.error('[Mailgun] FAILED: Missing configuration (API Key or Domain).');
-    return { success: false, error: 'Missing Config' };
+  if (!apiKey || !domain) {
+    let missing = [];
+    if (!apiKey) missing.push("MAILGUN_API_KEY");
+    if (!domain) missing.push("MAILGUN_DOMAIN");
+    
+    return { 
+      success: false, 
+      error: `Missing Config: ${missing.join(", ")}. Ensure these are in your .env.local or Vercel env settings.` 
+    };
   }
 
   try {
+    const mailgun = new Mailgun(FormData);
+    const client = mailgun.client({ username: 'api', key: apiKey });
+
     const result = await client.messages.create(domain, {
       from,
       to: [to],
@@ -25,10 +35,9 @@ export async function sendEmail({ to, subject, html }: { to: string, subject: st
       html,
     });
 
-    console.log(`[Mailgun] SUCCESS: ${result.id}`);
     return { success: true, messageId: result.id };
   } catch (err: any) {
-    console.error('[Mailgun] Error:', err.details || err.message);
-    return { success: false, error: err.message };
+    console.error('[Mailgun SDK Error]:', err);
+    return { success: false, error: err.message || "Unknown Mailgun Error" };
   }
 }
