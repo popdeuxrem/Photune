@@ -7,7 +7,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, KeyRound, Mail } from 'lucide-react';
 
 export function SignInForm() {
   const [email, setEmail] = useState('');
@@ -31,7 +31,7 @@ export function SignInForm() {
 
   const handleResetPassword = async () => {
     if (!email) {
-      toast({ title: "Email required", description: "Please enter your email address first.", variant: "destructive" });
+      toast({ title: "Email required", description: "Enter your email to receive a reset link.", variant: "destructive" });
       return;
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -40,50 +40,44 @@ export function SignInForm() {
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Reset Link Sent", description: "Check your email for the recovery link." });
+      toast({ title: "Link Sent", description: "Check your inbox for the recovery link." });
     }
   };
 
   return (
-    <form onSubmit={handleSignIn} className="space-y-4">
+    <form onSubmit={handleSignIn} className="space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-zinc-700 font-semibold">Email Address</Label>
-        <Input 
-          id="email" 
-          type="email" 
-          placeholder="name@example.com" 
-          required 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)} 
-          className="rounded-xl h-11 border-zinc-200" 
-        />
+        <Label htmlFor="email" className="text-xs font-bold uppercase text-zinc-500 ml-1">Email Address</Label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+          <Input 
+            id="email" type="email" placeholder="name@company.com" required 
+            value={email} onChange={(e) => setEmail(e.target.value)} 
+            className="pl-10 h-12 rounded-xl border-zinc-200 focus:ring-zinc-900" 
+          />
+        </div>
       </div>
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="password" className="text-zinc-700 font-semibold">Password</Label>
+        <div className="flex justify-between items-center px-1">
+          <Label htmlFor="password" className="text-xs font-bold uppercase text-zinc-500">Password</Label>
           <button 
-            type="button" 
-            onClick={handleResetPassword}
-            className="text-[11px] font-bold uppercase tracking-tighter text-zinc-400 hover:text-zinc-900 transition-colors"
+            type="button" onClick={handleResetPassword}
+            className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-900 transition-colors"
           >
-            Forgot password?
+            Forgot?
           </button>
         </div>
-        <Input 
-          id="password" 
-          type="password" 
-          required 
-          value={password} 
-          onChange={(e) => setPassword(e.target.value)} 
-          className="rounded-xl h-11 border-zinc-200" 
-        />
+        <div className="relative">
+          <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+          <Input 
+            id="password" type="password" required 
+            value={password} onChange={(e) => setPassword(e.target.value)} 
+            className="pl-10 h-12 rounded-xl border-zinc-200 focus:ring-zinc-900" 
+          />
+        </div>
       </div>
-      <Button 
-        type="submit" 
-        className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
-        disabled={loading}
-      >
-        {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Sign In"}
+      <Button type="submit" className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold transition-all shadow-lg active:scale-[0.98]" disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : "Sign In"}
       </Button>
     </form>
   );

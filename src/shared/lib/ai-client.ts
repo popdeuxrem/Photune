@@ -1,31 +1,29 @@
 declare const puter: any;
 
-/**
- * Resilient AI Client for phoTextAI
- * Primary: Puter.js (Zero Latency / Free)
- * Fallback: Cloudflare Workers AI (Edge / Free Tier)
- */
+const FONT_MAP: Record<string, string> = {
+  'sans-serif': 'Inter',
+  'serif': 'Playfair Display',
+  'monospaced': 'JetBrains Mono',
+  'handwriting': 'Dancing Script'
+};
+
 export const AiClient = {
   /**
-   * Rewrites text based on a specific tone
+   * Rewrites text with tone-awareness and fallback
    */
   async rewrite(text: string, tone: string = 'professional'): Promise<string> {
-    const prompt = `Rewrite this text to be ${tone}. Return ONLY the rewritten text, no quotes: "${text}"`;
+    const prompt = `Rewrite this text to be ${tone}. Return ONLY the rewritten text, no quotes or meta info: "${text}"`;
     
     try {
       if (typeof puter !== 'undefined') {
         const response = await puter.ai.chat(prompt);
-        return response.toString().trim();
+        return response.toString().trim().replace(/^"|"$/g, '');
       }
       throw new Error("Puter not available");
     } catch (err) {
-      console.warn("Falling back to Cloudflare for Rewrite...");
       const res = await fetch('/api/ai/workers', {
         method: 'POST',
-        body: JSON.stringify({ 
-          task: 'text-gen', 
-          prompt: { messages: [{ role: 'user', content: prompt }] } 
-        })
+        body: JSON.stringify({ task: 'text-gen', prompt: { messages: [{ role: 'user', content: prompt }] } })
       });
       const data = await res.json();
       return data.response || text;
@@ -33,34 +31,34 @@ export const AiClient = {
   },
 
   /**
-   * Generates a caption/description for an image
-   */
-  async caption(imageUrl: string): Promise<string> {
-    const prompt = "Describe this image in one concise sentence for a project title.";
-    try {
-      if (typeof puter !== 'undefined') {
-        const res = await puter.ai.chat(prompt, imageUrl);
-        return res.toString();
-      }
-      throw new Error("Puter not available");
-    } catch {
-      return "AI Generated Project";
-    }
-  },
-
-  /**
-   * Identifies the category of font in a cropped image
+   * Identifies font category and maps to a Google Font
    */
   async detectFont(cropDataUrl: string): Promise<string> {
     const prompt = "Categorize the font in this image: serif, sans-serif, monospaced, or handwriting. Respond with ONLY one word.";
     try {
+      let category = 'sans-serif';
       if (typeof puter !== 'undefined') {
-        const category = await puter.ai.chat(prompt, cropDataUrl);
-        return category.toString().toLowerCase().trim();
+        const res = await puter.ai.chat(prompt, cropDataUrl);
+        category = res.toString().toLowerCase().trim();
       }
-      return 'sans-serif';
+      return FONT_MAP[category] || 'Inter';
     } catch {
-      return 'sans-serif';
+      return 'Inter';
+    }
+  },
+
+  /**
+   * Generates project titles based on image content
+   */
+  async caption(imageUrl: string): Promise<string> {
+    try {
+      if (typeof puter !== 'undefined') {
+        const res = await puter.ai.chat("Give this image a short, creative 3-word title.", imageUrl);
+        return res.toString().replace(/"/g, '');
+      }
+      return "Untitled Design";
+    } catch {
+      return "My Design";
     }
   }
 };

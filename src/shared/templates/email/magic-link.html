@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Access</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; color: #111827;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
+                    <tr>
+                        <td style="padding: 40px 40px 40px 40px;">
+                            <div style="font-size: 24px; font-weight: 900; letter-spacing: -0.05em; color: #18181b; margin-bottom: 24px;">phoTextAI</div>
+                            <h1 style="font-size: 20px; font-weight: 700; margin: 0 0 16px 0;">Sign in to your studio</h1>
+                            <p style="font-size: 15px; line-height: 24px; color: #4b5563; margin: 0 0 24px 0;">You requested a secure login link for <strong>{{ .Email }}</strong>. This link will expire shortly.</p>
+                            <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #18181b; color: #ffffff; padding: 12px 32px; border-radius: 9999px; text-decoration: none; font-size: 14px; font-weight: 600;">Sign In to phoTextAI</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color: #f3f4f6; padding: 32px 40px; text-align: center;">
+                            <p style="font-size: 12px; font-weight: 600; color: #18181b; margin: 0 0 4px 0;">phoTextAI</p>
+                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">If you didn't request this, you can safely ignore this email.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

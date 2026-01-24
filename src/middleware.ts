@@ -1,6 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/**
+ * Hardened Middleware for phoTextAI
+ * Handles: 
+ * 1. Session Refreshing
+ * 2. Protected Route Guarding (/dashboard, /editor, /onboarding)
+ * 3. Auth Page Reverse-Protection (/login, /signup)
+ */
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
@@ -26,6 +33,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // refresh session if it exists
   const { data: { user } } = await supabase.auth.getUser()
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
@@ -33,14 +41,15 @@ export async function middleware(request: NextRequest) {
                     request.nextUrl.pathname.startsWith('/auth')
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') || 
-                          request.nextUrl.pathname.startsWith('/editor')
+                          request.nextUrl.pathname.startsWith('/editor') ||
+                          request.nextUrl.pathname.startsWith('/onboarding')
 
-  // Case 1: No user on a protected route -> Go to Login
+  // Case 1: Unauthenticated user tries to access the App -> Redirect to Login
   if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Case 2: Valid user on an auth page -> Go to Dashboard
+  // Case 2: Authenticated user tries to access Auth pages -> Redirect to Dashboard
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
