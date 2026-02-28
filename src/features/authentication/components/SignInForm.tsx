@@ -1,83 +1,105 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/shared/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { createClient } from '@/shared/lib/supabase/client';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { useToast } from '@/shared/components/ui/use-toast';
-import { Loader2, KeyRound, Mail } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
 
 export function SignInForm() {
+  const router = useRouter();
+  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
-  const router = useRouter();
-  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
     if (error) {
-      toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+      setError(error.message);
       setLoading(false);
     } else {
       router.push('/dashboard');
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!email) {
-      toast({ title: "Email required", description: "Enter your email to receive a reset link.", variant: "destructive" });
-      return;
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Link Sent", description: "Check your inbox for the recovery link." });
-    }
-  };
-
   return (
-    <form onSubmit={handleSignIn} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-xs font-bold uppercase text-zinc-500 ml-1">Email Address</Label>
+        <Label htmlFor="email" className="text-xs font-bold uppercase text-zinc-500">Email</Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-          <Input 
-            id="email" type="email" placeholder="name@company.com" required 
-            value={email} onChange={(e) => setEmail(e.target.value)} 
-            className="pl-10 h-12 rounded-xl border-zinc-200 focus:ring-zinc-900" 
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="pl-10 h-12 rounded-xl bg-zinc-50 border-zinc-200 focus:border-zinc-900 focus:ring-zinc-900"
+            required
           />
         </div>
       </div>
+
       <div className="space-y-2">
-        <div className="flex justify-between items-center px-1">
+        <div className="flex items-center justify-between">
           <Label htmlFor="password" className="text-xs font-bold uppercase text-zinc-500">Password</Label>
-          <button 
-            type="button" onClick={handleResetPassword}
-            className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-900 transition-colors"
-          >
+          <Link href="/forgot-password" className="text-xs font-medium text-zinc-500 hover:text-zinc-900">
             Forgot?
+          </Link>
+        </div>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="pl-10 pr-10 h-12 rounded-xl bg-zinc-50 border-zinc-200 focus:border-zinc-900 focus:ring-zinc-900"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+          >
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-        <div className="relative">
-          <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-          <Input 
-            id="password" type="password" required 
-            value={password} onChange={(e) => setPassword(e.target.value)} 
-            className="pl-10 h-12 rounded-xl border-zinc-200 focus:ring-zinc-900" 
-          />
-        </div>
       </div>
-      <Button type="submit" className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold transition-all shadow-lg active:scale-[0.98]" disabled={loading}>
-        {loading ? <Loader2 className="animate-spin" /> : "Sign In"}
+
+      <Button 
+        type="submit" 
+        disabled={loading}
+        className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold"
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <>
+            Sign In <ArrowRight className="ml-2 w-4 h-4" />
+          </>
+        )}
       </Button>
     </form>
   );
