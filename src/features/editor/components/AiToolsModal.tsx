@@ -19,7 +19,7 @@ import {
 } from '@/shared/components/ui/select';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { AiClient } from '@/shared/lib/ai-client';
+import { PhotuneAI } from '@/shared/lib/photune-ai';
 import { fabric } from 'fabric';
 
 export function AiToolsModal({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (o: boolean) => void }) {
@@ -39,8 +39,8 @@ export function AiToolsModal({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen
     setLoading(true);
     
     try {
-      // Use the unified AiClient (which handles Puter + CF fallbacks)
-      const suggestion = await AiClient.rewrite(textbox.text || '', tone);
+      // Use PhotuneAI (Groq-powered) for text rewriting
+      const suggestion = await PhotuneAI.rewrite(textbox.text || '', tone);
       setResult(suggestion);
     } catch (e) {
       toast({ 
