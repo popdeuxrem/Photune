@@ -65,3 +65,53 @@ CREATE INDEX idx_subscriptions_user_id ON user_subscriptions(user_id);
 CREATE INDEX idx_brand_kits_user_id ON brand_kits(user_id);
 CREATE INDEX idx_ai_usage_user_id ON ai_usage_logs(user_id);
 CREATE INDEX idx_ai_usage_created_at ON ai_usage_logs(created_at);
+
+-- ============================================
+-- PAYMENT TABLES
+-- ============================================
+
+-- Payment References (Paystack/Stripe)
+CREATE TABLE payment_references (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  reference VARCHAR(255) UNIQUE NOT NULL,
+  provider VARCHAR(50) NOT NULL, -- 'paystack', 'stripe'
+  tier VARCHAR(20) NOT NULL,
+  amount DECIMAL(10,2),
+  currency VARCHAR(10),
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE payment_references ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own payments" 
+  ON payment_references FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Crypto Payments (NowPayments)
+CREATE TABLE crypto_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  invoice_id VARCHAR(255) UNIQUE NOT NULL,
+  provider VARCHAR(50) DEFAULT 'nowpayments',
+  tier VARCHAR(20) NOT NULL,
+  currency VARCHAR(20) NOT NULL,
+  amount DECIMAL(20,8) NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'failed')),
+  payment_id VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE crypto_payments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own crypto payments" 
+  ON crypto_payments FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Payment indexes
+CREATE INDEX idx_payment_ref_user ON payment_references(user_id);
+CREATE INDEX idx_payment_ref_ref ON payment_references(reference);
+CREATE INDEX idx_crypto_payments_user ON crypto_payments(user_id);
+CREATE INDEX idx_crypto_payments_invoice ON crypto_payments(invoice_id);

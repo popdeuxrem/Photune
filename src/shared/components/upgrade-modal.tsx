@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
-import { Crown, Zap, Check, Loader2 } from 'lucide-react';
+import { Crown, Zap, Check, Loader2, CreditCard, Bitcoin } from 'lucide-react';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -11,10 +11,13 @@ interface UpgradeModalProps {
   feature: string;
 }
 
+type PaymentMethod = 'card' | 'crypto';
+
 const PLANS = [
   {
     name: 'Pro',
-    price: 9.99,
+    priceUSD: 9.99,
+    priceNaira: 9990,
     interval: 'month',
     features: [
       'No watermark on exports',
@@ -27,7 +30,8 @@ const PLANS = [
   },
   {
     name: 'Enterprise',
-    price: 49.99,
+    priceUSD: 49.99,
+    priceNaira: 49990,
     interval: 'month',
     features: [
       'Everything in Pro',
@@ -42,29 +46,33 @@ const PLANS = [
 
 export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
 
-  const handleUpgrade = async (priceId: string) => {
+  const handlePayment = async (priceId: string, method: PaymentMethod) => {
     setLoading(priceId);
     
     try {
-      const res = await fetch('/api/stripe/checkout', {
+      const endpoint = method === 'crypto' 
+        ? '/api/payments/crypto/checkout'
+        : '/api/payments/paystack/checkout';
+      
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          tier: priceId.includes('enterprise') ? 'enterprise' : 'pro',
-          interval: 'monthly'
+          tier: priceId.includes('enterprise') ? 'enterprise' : 'pro'
         }),
       });
       
       const data = await res.json();
       
-      if (data.url) {
-        window.location.href = data.url;
+      if (data.url || data.paymentUrl) {
+        window.location.href = data.url || data.paymentUrl;
       } else {
-        console.error('Failed to create checkout:', data.error);
+        console.error('Failed to create payment:', data.error);
       }
     } catch (error) {
-      console.error('Upgrade error:', error);
+      console.error('Payment error:', error);
     } finally {
       setLoading(null);
     }
@@ -72,17 +80,44 @@ export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-white dark:bg-zinc-900 rounded-2xl">
+      <DialogContent className="max-w-md bg-white dark:bg-zinc-900 rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-2">
             <Crown className="w-5 h-5 text-amber-500" />
             <DialogTitle className="text-xl dark:text-white">Upgrade to Pro</DialogTitle>
           </div>
           <DialogDescription className="text-zinc-500 dark:text-zinc-400">
-            Unlock {feature} with Photune Pro. Starting at $9.99/month.
+            Unlock {feature} with Photune Pro. Choose your payment method below.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Payment Method Toggle */}
+        <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+          <button
+            onClick={() => setPaymentMethod('card')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+              paymentMethod === 'card' 
+                ? 'bg-white dark:bg-zinc-700 shadow-sm' 
+                : 'text-zinc-500 hover:text-zinc-700'
+            }`}
+          >
+            <CreditCard size={16} />
+            Card / Bank
+          </button>
+          <button
+            onClick={() => setPaymentMethod('crypto')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+              paymentMethod === 'crypto' 
+                ? 'bg-white dark:bg-zinc-700 shadow-sm' 
+                : 'text-zinc-500 hover:text-zinc-700'
+            }`}
+          >
+            <Bitcoin size={16} />
+            Crypto
+          </button>
+        </div>
+
+        {/* Plans */}
         <div className="space-y-4 py-4">
           {PLANS.map((plan) => (
             <div
@@ -93,7 +128,8 @@ export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
                 <div>
                   <h3 className="font-bold text-lg dark:text-white">{plan.name}</h3>
                   <p className="text-2xl font-black">
-                    ${plan.price}
+                    {paymentMethod === 'crypto' ? '~$' : '₦'}
+                    {paymentMethod === 'crypto' ? plan.priceUSD : plan.priceNaira}
                     <span className="text-sm font-normal text-zinc-500">/{plan.interval}</span>
                   </p>
                 </div>
@@ -114,7 +150,7 @@ export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
               </ul>
 
               <Button
-                onClick={() => handleUpgrade(plan.priceId)}
+                onClick={() => handlePayment(plan.priceId, paymentMethod)}
                 disabled={loading !== null}
                 className="w-full"
                 variant={plan.name === 'Pro' ? 'default' : 'outline'}
@@ -124,7 +160,7 @@ export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
                 ) : (
                   <>
                     <Zap className="w-4 h-4 mr-2" />
-                    Get {plan.name}
+                    Pay with {paymentMethod === 'crypto' ? 'Crypto' : 'Card/Bank'}
                   </>
                 )}
               </Button>
@@ -132,8 +168,19 @@ export function UpgradeModal({ isOpen, onClose, feature }: UpgradeModalProps) {
           ))}
         </div>
 
-        <p className="text-xs text-center text-zinc-400">
-          Cancel anytime. Secure payment via Stripe.
+        <div className="flex items-center justify-center gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+          <div className="flex items-center gap-1 text-xs text-zinc-400">
+            <CreditCard size={14} />
+            Paystack
+          </div>
+          <div className="flex items-center gap-1 text-xs text-zinc-400">
+            <Bitcoin size={14} />
+            Crypto (BTC, ETH, USDT)
+          </div>
+        </div>
+
+        <p className="text-xs text-center text-zinc-400 pt-2">
+          Cancel anytime. Secure payments via Paystack or Cryptocurrency.
         </p>
       </DialogContent>
     </Dialog>
