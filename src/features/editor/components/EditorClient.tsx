@@ -14,6 +14,8 @@ import { EditorModeNav, type EditorMode } from './EditorModeNav';
 import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
 import { UploadModePanel } from './Panels/UploadModePanel';
 import { ExportModePanel } from './Panels/ExportModePanel';
+import { TextModePanel } from './Panels/TextModePanel';
+import { EraseModePanel } from './Panels/EraseModePanel';
 
 interface EditorClientProps {
   projectId: string;
@@ -208,6 +210,19 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       case 'export':
         return (
           <ExportModePanel
+            hasContent={hasContent}
+          />
+        );
+      case 'text':
+        return (
+          <TextModePanel
+            hasContent={hasContent}
+            hasTextSelected={false}
+          />
+        );
+      case 'erase':
+        return (
+          <EraseModePanel
             hasContent={hasContent}
           />
         );
