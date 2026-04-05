@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { Sidebar } from './Toolbar/Sidebar';
 import { Header } from './Header';
@@ -9,6 +9,8 @@ import { JobStatusPanel } from './JobStatusPanel';
 import { EditorShell } from './EditorShell';
 import { fabric } from 'fabric';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { EditorEmptyState } from './EditorEmptyState';
+import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
 
 interface EditorClientProps {
   projectId: string;
@@ -18,6 +20,41 @@ interface EditorClientProps {
 export function EditorClient({ projectId, initialProjectData }: EditorClientProps) {
   const { fabricCanvas, saveState, undo, redo, canUndo, canRedo } = useAppStore();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [hasContent, setHasContent] = useState(false);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !fabricCanvas) return;
+
+    const validation = validateImageUpload(file);
+    if (!validation.ok) {
+      toast({ title: validation.message || 'Invalid file', variant: 'destructive' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      fabric.Image.fromURL(dataUrl, (img) => {
+        img.set({ crossOrigin: 'anonymous' });
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+          scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
+          scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+        });
+        fabricCanvas.renderAll();
+        setHasContent(true);
+        saveState();
+        toast({ title: 'Image uploaded' });
+      }, { crossOrigin: 'anonymous' });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [fabricCanvas, saveState, toast]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -145,6 +182,15 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     }
   }, [fabricCanvas, initialProjectData, saveState]);
 
+  // Check for initial content on mount
+  useEffect(() => {
+    const hasInitialContent = Boolean(
+      initialProjectData?.canvas_data ||
+      initialProjectData?.original_image_url
+    );
+    setHasContent(hasInitialContent);
+  }, [initialProjectData]);
+
   return (
     <EditorShell
       header={
@@ -156,11 +202,24 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       sidebar={<Sidebar />}
       panel={null}
       canvas={
-        <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
-            <Canvas />
-          </div>
-        </main>
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          {hasContent ? (
+            <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
+                <Canvas />
+              </div>
+            </main>
+          ) : (
+            <EditorEmptyState onUploadClick={handleUploadClick} />
+          )}
+        </>
       }
     />
   );
