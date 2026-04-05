@@ -16,6 +16,8 @@ import { UploadModePanel } from './Panels/UploadModePanel';
 import { ExportModePanel } from './Panels/ExportModePanel';
 import { TextModePanel } from './Panels/TextModePanel';
 import { EraseModePanel } from './Panels/EraseModePanel';
+import { RewriteModePanel } from './Panels/RewriteModePanel';
+import { BackgroundModePanel } from './Panels/BackgroundModePanel';
 
 interface EditorClientProps {
   projectId: string;
@@ -223,6 +225,19 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       case 'erase':
         return (
           <EraseModePanel
+            hasContent={hasContent}
+          />
+        );
+      case 'rewrite':
+        return (
+          <RewriteModePanel
+            hasContent={hasContent}
+            canRewrite={false}
+          />
+        );
+      case 'background':
+        return (
+          <BackgroundModePanel
             hasContent={hasContent}
           />
         );
