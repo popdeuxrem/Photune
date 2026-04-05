@@ -37,6 +37,22 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: example-anon-key
           NEXT_PUBLIC_SITE_URL: https://example.com
+
+          STRIPE_SECRET_KEY: sk_test_example
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_example
+          STRIPE_WEBHOOK_SECRET: whsec_example
+          STRIPE_PRO_MONTHLY_PRICE_ID: price_pro_monthly_example
+          STRIPE_PRO_YEARLY_PRICE_ID: price_pro_yearly_example
+          STRIPE_ENTERPRISE_MONTHLY_PRICE_ID: price_enterprise_monthly_example
+
+          MAILGUN_API_KEY: key-example
+          MAILGUN_DOMAIN: mg.example.com
+          MAILGUN_FROM_EMAIL: no-reply@example.com
+
+          GROQ_API_KEY: groq_example_key
+
+          CLOUDFLARE_ACCOUNT_ID: cloudflare_account_example
+          CLOUDFLARE_API_TOKEN: cloudflare_token_example
         run: npm run build
 
       - name: 7. Smoke test projects contract
