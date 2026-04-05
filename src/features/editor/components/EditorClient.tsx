@@ -10,6 +10,7 @@ import { EditorShell } from './EditorShell';
 import { fabric } from 'fabric';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { EditorEmptyState } from './EditorEmptyState';
+import { EditorModeNav, type EditorMode } from './EditorModeNav';
 import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
 
 interface EditorClientProps {
@@ -22,6 +23,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasContent, setHasContent] = useState(false);
+  const [activeMode, setActiveMode] = useState<EditorMode>('upload');
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -200,7 +202,9 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         />
       }
       sidebar={<Sidebar />}
-      panel={null}
+      panel={hasContent ? <Sidebar /> : null}
+      mobilePanel={hasContent ? <Sidebar /> : null}
+      mobileModeNav={<EditorModeNav activeMode={activeMode} onModeChange={setActiveMode} />}
       canvas={
         <>
           <input
