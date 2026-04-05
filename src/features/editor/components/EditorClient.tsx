@@ -12,6 +12,8 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { EditorEmptyState } from './EditorEmptyState';
 import { EditorModeNav, type EditorMode } from './EditorModeNav';
 import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
+import { UploadModePanel } from './Panels/UploadModePanel';
+import { ExportModePanel } from './Panels/ExportModePanel';
 
 interface EditorClientProps {
   projectId: string;
@@ -193,6 +195,27 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     setHasContent(hasInitialContent);
   }, [initialProjectData]);
 
+  // Route panel based on active mode
+  const activePanel = (() => {
+    switch (activeMode) {
+      case 'upload':
+        return (
+          <UploadModePanel
+            hasContent={hasContent}
+            onUploadClick={handleUploadClick}
+          />
+        );
+      case 'export':
+        return (
+          <ExportModePanel
+            hasContent={hasContent}
+          />
+        );
+      default:
+        return <Sidebar />;
+    }
+  })();
+
   return (
     <EditorShell
       header={
@@ -201,9 +224,9 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           projectName={initialProjectData?.name || 'Untitled Project'} 
         />
       }
-      sidebar={<Sidebar />}
-      panel={hasContent ? <Sidebar /> : null}
-      mobilePanel={hasContent ? <Sidebar /> : null}
+      sidebar={activePanel}
+      panel={hasContent ? activePanel : null}
+      mobilePanel={activePanel}
       mobileModeNav={<EditorModeNav activeMode={activeMode} onModeChange={setActiveMode} />}
       canvas={
         <>
