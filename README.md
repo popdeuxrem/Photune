@@ -1,6 +1,6 @@
 # 📸 phoTextAI: The Pro AI Image-Text Studio
 
-**phoTextAI** is a high-performance, open-source image editor that bridges the gap between static images and editable design. Using a hybrid **"Edge + Browser"** AI architecture, it extracts text, identifies typography, and removes objects—all while operating on a zero-cost infrastructure.
+**Photune** is a high-performance, open-source image editor that bridges the gap between static images and editable design. Using a hybrid **"Edge + Browser"** AI architecture, it extracts text, identifies typography, and removes objects—all while operating on a zero-cost infrastructure.
 
 Built for designers and developers who want a free, open-source alternative to paid tools like `photext.shop` or Adobe Firefly.
 

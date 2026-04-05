@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run build && npm run smoke",
+    "smoke:projects": "node scripts/smoke-projects.mjs",
+    "smoke": "npm run smoke:projects && npm run smoke:providers",
+    "smoke:providers": "node scripts/smoke-provider-policy.mjs",
+    "providers:classify": "./scripts/classify-provider-surface.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
@@ -34,7 +40,6 @@
     "next": "^14.2.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "resend": "^6.8.0",
     "stripe": "^17.0.0",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",

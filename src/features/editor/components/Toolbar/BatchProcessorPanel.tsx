@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { Label } from '@/shared/components/ui/label';
 import { Button } from '@/shared/components/ui/button';
@@ -41,13 +42,23 @@ export function BatchProcessorPanel() {
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const newItems: BatchItem[] = files.map((file) => ({
-      id: Date.now().toString() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-      status: 'pending',
-    }));
-    setItems([...items, ...newItems]);
+    const validItems: BatchItem[] = [];
+    
+    for (const file of files) {
+      const validation = validateImageUpload(file);
+      if (!validation.ok) {
+        alert(validation.message);
+        continue;
+      }
+      validItems.push({
+        id: Date.now().toString() + Math.random(),
+        file,
+        preview: URL.createObjectURL(file),
+        status: 'pending',
+      });
+    }
+    
+    setItems([...items, ...validItems]);
   };
 
   const processBatch = async () => {
@@ -95,8 +106,8 @@ export function BatchProcessorPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Layers size={16} className="text-zinc        <Label class-400" />
-Name="text-xs font-bold uppercase text-zinc-400">Batch Processing</Label>
+        <Layers size={16} className="text-zinc-400" />
+        <Label className="text-xs font-bold uppercase text-zinc-400">Batch Processing</Label>
       </div>
 
       {/* Drop Zone */}
@@ -114,7 +125,7 @@ Name="text-xs font-bold uppercase text-zinc-400">Batch Processing</Label>
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp"
           multiple
           className="hidden"
           onChange={handleFiles}
@@ -137,6 +148,7 @@ Name="text-xs font-bold uppercase text-zinc-400">Batch Processing</Label>
                 key={item.id}
                 className="flex items-center gap-3 p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.preview}
                   alt=""

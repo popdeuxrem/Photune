@@ -1,8 +1,35 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getErrorSummary, logError, logInfo, logWarn } from '@/shared/lib/logging/logger';
+import { applyRateLimit, makeRateLimitKey } from '@/shared/lib/security/rate-limit';
+import { rateLimitResponse } from '@/shared/lib/security/rate-limit-response';
 
 export async function GET(request: Request) {
+  const rateLimit = applyRateLimit({
+    key: makeRateLimitKey('/api/auth/callback', request),
+    windowMs: 60_000,
+    max: 30,
+  });
+
+  if (!rateLimit.allowed) {
+    logWarn({
+      event: 'auth_callback_rate_limited',
+      surface: 'auth',
+      route: '/api/auth/callback',
+      operation: 'auth_callback',
+      statusCode: 429,
+      message: 'Auth callback rate limit exceeded',
+    });
+    return rateLimitResponse(rateLimit.retryAfterSeconds);
+  }
+
+  logInfo({
+    event: 'auth_callback_start',
+    surface: 'auth',
+    route: '/api/auth/callback',
+    operation: 'auth_callback',
+  });
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const origin = requestUrl.origin

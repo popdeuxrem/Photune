@@ -2,6 +2,8 @@ import { SignUpForm } from '@/features/authentication/components/SignUpForm';
 import { SocialAuth } from '@/features/authentication/components/SocialAuth';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">

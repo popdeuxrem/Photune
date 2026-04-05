@@ -43,7 +43,7 @@ export function canUseFeature(tier: SubscriptionTier, feature: keyof typeof TIER
   if (typeof featureValue === 'boolean') {
     return featureValue;
   }
-  if (featureValue === 'unlimited' || featureValue === true) {
+  if (featureValue === 'unlimited') {
     return true;
   }
   return false;

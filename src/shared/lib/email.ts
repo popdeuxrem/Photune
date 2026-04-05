@@ -1,26 +1,28 @@
 import FormData from 'form-data';
 import Mailgun from 'mailgun.js';
+import { getErrorSummary, logError, logInfo } from '@/shared/lib/logging/logger';
+import { requireMailgunEnv } from '@/shared/lib/env/email';
 
 /**
  * Aligned with mg.avanterdor.xyz deliverability standards
  */
 export async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
-  const apiKey = process.env.MAILGUN_API_KEY;
-  const domain = process.env.MAILGUN_DOMAIN;
-  
-  // Aligning default 'from' with the verified subdomain
-  const from = process.env.MAILGUN_FROM_EMAIL || `phoTextAI <noreply@${domain}>`;
+  const mailgunEnv = requireMailgunEnv();
 
-  if (!apiKey || !domain) {
-    console.error('[Email] FAILED: Missing Mailgun environment variables.');
-    return { success: false, error: 'Configuration Error' };
-  }
+  const from = mailgunEnv.fromEmail || `Photune <noreply@${mailgunEnv.domain}>`;
+
+  logInfo({
+    event: 'mailgun_send_start',
+    surface: 'email',
+    provider: 'mailgun',
+    operation: 'mail_send',
+  });
 
   try {
     const mailgun = new Mailgun(FormData);
-    const client = mailgun.client({ username: 'api', key: apiKey });
+    const client = mailgun.client({ username: 'api', key: mailgunEnv.apiKey });
 
-    const result = await client.messages.create(domain, {
+    const result = await client.messages.create(mailgunEnv.domain, {
       from,
       to: [to],
       subject,
@@ -28,9 +30,23 @@ export async function sendEmail({ to, subject, html }: { to: string, subject: st
     });
 
     console.log(`[Email] Transactional success: ${result.id}`);
+    logInfo({
+      event: 'mailgun_send_success',
+      surface: 'email',
+      provider: 'mailgun',
+      operation: 'mail_send',
+      message: result.id,
+    });
     return { success: true, messageId: result.id };
   } catch (err: any) {
     console.error('[Email SDK Error]:', err.message);
+    logError({
+      event: 'mailgun_send_failure',
+      surface: 'email',
+      provider: 'mailgun',
+      operation: 'mail_send',
+      ...getErrorSummary(err),
+    });
     return { success: false, error: err.message };
   }
 }

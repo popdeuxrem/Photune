@@ -2,6 +2,8 @@ import { SignInForm } from '@/features/authentication/components/SignInForm';
 import { SocialAuth } from '@/features/authentication/components/SocialAuth';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">

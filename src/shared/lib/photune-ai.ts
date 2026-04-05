@@ -24,12 +24,7 @@ export const PhotuneAI = {
       concise: 'short, punchy, direct'
     };
 
-    const prompt = `Rewrite this text to be ${toneDescriptions[tone] || 'professional}. 
-Return ONLY the rewritten text, no quotes, no explanation, no meta information.
-
-Original: "${text}"
-
-Rewritten:`;
+    const prompt = `Rewrite this text to be ${toneDescriptions[tone] || 'professional'}. Return ONLY the rewritten text, no quotes, no explanation, no meta information. Original: "${text}" Rewritten:`;
 
     try {
       const response = await fetch(GROQ_API_URL, {

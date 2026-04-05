@@ -130,8 +130,8 @@ export function SignUpForm() {
 
       {/* Benefits preview */}
       <div className="pt-4 border-t border-zinc-100">
-        <p className="text-xs font-medium text-zinc-500 mb-3">You'll get:</p>
-Name="space-y        <ul class-2">
+        <p className="text-xs font-medium text-zinc-500 mb-3">You&apos;ll get:</p>
+        <ul className="space-y-2">
           {benefits.map((benefit) => (
             <li key={benefit} className="flex items-center gap-2 text-sm text-zinc-600">
               <CheckCircle2 size={14} className="text-emerald-500" />
