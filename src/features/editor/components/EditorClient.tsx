@@ -6,6 +6,7 @@ import { Sidebar } from './Toolbar/Sidebar';
 import { Header } from './Header';
 import { Canvas } from './Canvas';
 import { JobStatusPanel } from './JobStatusPanel';
+import { EditorShell } from './EditorShell';
 import { fabric } from 'fabric';
 import { useToast } from '@/shared/components/ui/use-toast';
 
@@ -145,27 +146,22 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   }, [fabricCanvas, initialProjectData, saveState]);
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-100 dark:bg-zinc-950 overflow-hidden select-none">
-      {/* Top Navigation Bar (Home, Undo, Save, Export) */}
-      <Header 
-        projectId={projectId} 
-        projectName={initialProjectData?.name || 'Untitled Project'} 
-      />
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Side: Modular AI & Tool Panels */}
-        <Sidebar />
-
-        {/* Central Workspace: Interactive Fabric.js Canvas */}
+    <EditorShell
+      header={
+        <Header 
+          projectId={projectId} 
+          projectName={initialProjectData?.name || 'Untitled Project'} 
+        />
+      }
+      sidebar={<Sidebar />}
+      panel={null}
+      canvas={
         <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
           <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
             <Canvas />
           </div>
         </main>
-      </div>
-
-      {/* Overlay: AI Processing and OCR Job Status Notifications */}
-      <JobStatusPanel />
-    </div>
+      }
+    />
   );
 }
