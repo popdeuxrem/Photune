@@ -18,6 +18,7 @@ import { TextModePanel } from './Panels/TextModePanel';
 import { EraseModePanel } from './Panels/EraseModePanel';
 import { RewriteModePanel } from './Panels/RewriteModePanel';
 import { BackgroundModePanel } from './Panels/BackgroundModePanel';
+import { LayersModePanel } from './Panels/LayersModePanel';
 
 interface EditorClientProps {
   projectId: string;
@@ -239,6 +240,13 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         return (
           <BackgroundModePanel
             hasContent={hasContent}
+          />
+        );
+      case 'layers':
+        return (
+          <LayersModePanel
+            hasContent={hasContent}
+            hasObjectSelection={false}
           />
         );
       default:
