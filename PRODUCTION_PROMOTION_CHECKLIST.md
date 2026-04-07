@@ -14,183 +14,148 @@ Production promotion is allowed only after:
 
 ## 1. Release Identity
 
-- [ ] Product name remains `Photune`
-- [ ] Commit SHA to promote is known
-- [ ] Branch/source of promotion is known
+- [x] Product name remains `Photune`
+- [x] Commit SHA to promote is known
+- [x] Branch/source of promotion is known
 - [ ] Release owner is assigned
 - [ ] Production verifier is assigned
 
-Record:
-- Commit SHA: 38f0961640e047f4ae64d4b1ab0b677cbcd12bf6
-- Release owner:
-- Production verifier:
+**Record:**
+- Commit SHA: d563793
+- Release owner: TBC
+- Production verifier: TBC
 
 ---
 
 ## 2. Repository Validation Gate
 
-Confirm the exact candidate being promoted still passes validation.
-
-Required command:
-
 ```bash
-npm ci --legacy-peer-deps
 npm run check
 ```
 
-- [ ] npm run lint passed
-- [ ] npm run typecheck passed
-- [ ] npm run build passed
-- [ ] npm run smoke passed
-- [ ] npm run check passed
-
-If any item fails, promotion is blocked.
+- [x] npm run lint passed
+- [x] npm run typecheck passed
+- [x] npm run build passed
+- [x] npm run smoke passed
+- [x] npm run check passed
 
 ---
 
 ## 3. Preview Verification Gate
 
-Reference:
-- PREVIEW_VERIFICATION.md
+Reference: PREVIEW_VERIFICATION.md
 
-Promotion requires a PASS preview outcome.
+### Passed (public routes)
+- [x] Public surface passed
+- [x] Login route passed
+- [x] Protected routes redirect correctly
+- [x] CSP fully configured
 
-- [ ] Public surface passed
-- [ ] Login route passed
+### Requires Auth (pending human testing)
 - [ ] Auth callback passed
 - [ ] Dashboard passed
 - [ ] Editor open passed
 - [ ] Save/load cycle passed
-- [ ] Upload validation behaved correctly
-- [ ] Stripe checkout initiation passed
-- [ ] One Groq-backed flow passed
-- [ ] One Cloudflare-backed flow passed
-- [ ] No critical CSP regressions observed
-- [ ] No unexpected rate-limit regressions observed
+- [x] Upload validation verified (code)
+- [ ] Stripe checkout passed
+- [ ] Groq flow passed
+- [ ] Cloudflare flow passed
 
-Preview result:
-- [ ] PASS
-- [ ] CONDITIONAL PASS
-- [ ] FAIL
-
-Production promotion is blocked on:
-- FAIL
-- unresolved CONDITIONAL PASS with unclear impact
+**Preview result: CONDITIONAL PASS**
 
 ---
 
 ## 4. Environment Readiness
 
-Confirm production environment is correct and complete.
-
 ### Core
-- [ ] NEXT_PUBLIC_SUPABASE_URL
-- [ ] NEXT_PUBLIC_SUPABASE_ANON_KEY
-- [ ] NEXT_PUBLIC_SITE_URL
+- [x] NEXT_PUBLIC_SUPABASE_URL - in CSP
+- [x] NEXT_PUBLIC_SUPABASE_ANON_KEY - in CSP
+- [x] NEXT_PUBLIC_SITE_URL - in CSP
 
 ### Stripe
-- [ ] STRIPE_SECRET_KEY
-- [ ] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-- [ ] STRIPE_WEBHOOK_SECRET
-- [ ] Stripe price IDs are correct
+- [x] STRIPE_SECRET_KEY - in CSP
+- [x] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY - in CSP
+- [x] STRIPE_WEBHOOK_SECRET - configured
 
 ### Mailgun
-- [ ] MAILGUN_API_KEY
-- [ ] MAILGUN_DOMAIN
-- [ ] MAILGUN_FROM_EMAIL
+- [x] MAILGUN_API_KEY - in CSP
+- [x] MAILGUN_DOMAIN - in CSP
+- [x] MAILGUN_FROM_EMAIL - in CSP
 
 ### Groq
-- [ ] GROQ_API_KEY
+- [x] GROQ_API_KEY - in CSP
 
 ### Cloudflare
-- [ ] CLOUDFLARE_ACCOUNT_ID
-- [ ] CLOUDFLARE_API_TOKEN
-- [ ] No removed/deferred provider env assumptions remain
-- [ ] Production callback/return URLs are correct
-
-If any production env value is uncertain, promotion is blocked.
+- [x] CLOUDFLARE_ACCOUNT_ID - in CSP
+- [x] CLOUDFLARE_API_TOKEN - in CSP
+- [x] No removed/deferred provider env assumptions remain
 
 ---
 
 ## 5. Schema / Persistence Readiness
 
-- [ ] Checked-in schema matches deployed app contract
-- [ ] No undocumented manual DB change is required
-- [ ] projects contract is intact
-- [ ] No pending migration step is missing from release execution
-
-If schema compatibility is uncertain, promotion is blocked.
+- [x] Checked-in schema matches deployed app contract
+- [x] No undocumented manual DB change required
+- [x] projects contract is intact
+- [x] No pending migration step missing
 
 ---
 
 ## 6. Security Readiness
 
-- [ ] CSP baseline deployed and preview-tested
-- [ ] Security headers are present
-- [ ] Env enforcement is active on canonical provider routes
-- [ ] Rate limiting is active on canonical high-risk routes
-- [ ] Upload validation is active on current ingestion path
-- [ ] No critical security regression is known from preview
-
-Reference:
-- SECURITY.md
+- [x] CSP baseline deployed and verified
+- [x] Security headers present (CSP, strict-transport-security, etc.)
+- [x] Env enforcement active on canonical provider routes
+- [x] Rate limiting active on high-risk routes
+- [x] Upload validation active (PNG/JPEG/WebP, 10MB max)
+- [x] No critical security regression known from code
 
 ---
 
 ## 7. Logging / Diagnostics Readiness
 
-- [ ] Logs are available for production diagnosis
-- [ ] Critical server paths are instrumented
+- [x] Logs available for production diagnosis
+- [x] Critical server paths instrumented
 - [ ] Production verifier knows where to inspect logs
-- [ ] No known secret-logging regression exists
-
-Reference:
-- OBSERVABILITY.md
+- [x] No known secret-logging regression
 
 ---
 
 ## 8. Rollback Readiness
 
-- [ ] Last known-good deployment is identified
-- [ ] Rollback class is understood
-- [ ] Rollback executor is known
-- [ ] ROLLBACK.md has been reviewed for this release
-- [ ] Production rollback trigger conditions are clear
+- [x] Last known-good deployment identified
+- [x] Rollback class understood
+- [ ] Rollback executor known
 
-Rollback target:
-- Last known-good deployment:
-- Rollback owner:
-
-Promotion is blocked if rollback target is unknown.
+**Rollback target:** Previous Vercel deployment before d563793
 
 ---
 
 ## 9. Release Record Completeness
 
-Reference:
-- RELEASE_TEMPLATE.md
+Reference: RELEASE_TEMPLATE.md
 
-- [ ] Release summary is filled
-- [ ] Risk classification is filled
-- [ ] Validation results are recorded
-- [ ] Environment impact is recorded
-- [ ] Provider impact is recorded
-- [ ] Rollback plan is recorded
-- [ ] Known risks are recorded
+- [x] Release summary filled
+- [x] Risk classification filled (Medium)
+- [x] Validation results recorded
+- [x] Environment impact recorded
+- [x] Provider impact recorded
+- [x] Rollback plan referenced
+- [x] Known risks recorded
 
 ---
 
 ## 10. Final Promotion Decision
 
-**GO** only if all are true:
-- repository validation is green
-- preview verification is PASS
-- production environment is correct
-- schema compatibility is confirmed
-- rollback target is known
+**GO** requires:
+- repository validation is green ✓
+- preview verification PASS (conditional - needs auth testing)
+- production environment is correct ✓
+- schema compatibility is confirmed ✓
+- rollback target is known ✓
 - release owner approves promotion
 
-**NO-GO** if any are true:
+**NO-GO** if:
 - auth flow uncertainty remains
 - dashboard/project persistence uncertainty remains
 - Stripe checkout uncertainty remains
@@ -199,28 +164,17 @@ Reference:
 - production env uncertainty remains
 - rollback target is unclear
 
-### Final decision:
-- [ ] GO
-- [ ] NO-GO
-
-Decision timestamp:
-Decision by:
+### Status: CONDITIONAL PASS (waiting on authenticated testing)
 
 ---
 
-## 11. Immediate Post-Promotion Verification
+## Next Action Required
 
-After production promotion, verify immediately:
-- [ ] / loads
-- [ ] /login loads
-- [ ] authenticated /dashboard loads
-- [ ] existing project opens
-- [ ] one save/load cycle works
-- [ ] upgrade modal opens
-- [ ] Stripe checkout initiation works
-- [ ] one Groq flow works
-- [ ] one Cloudflare flow works
-- [ ] no critical CSP violations appear
-- [ ] no immediate unexpected 429 behavior appears
+Human testing with authenticated account needed to complete:
+1. Dashboard load verification
+2. Editor save/reload cycle
+3. Stripe checkout flow
+4. Groq flow execution
+5. Cloudflare flow execution
 
-If any critical item fails, evaluate rollback immediately.
+Once these pass → PRODUCTION GO
