@@ -29,6 +29,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const { fabricCanvas, saveState, undo, redo, canUndo, canRedo } = useAppStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingUploadRef = useRef<File | null>(null);
   const [hasContent, setHasContent] = useState(false);
   const [activeMode, setActiveMode] = useState<EditorMode>('upload');
 
@@ -36,19 +37,26 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !fabricCanvas) return;
+  const processUpload = useCallback(async (file: File) => {
+    if (!fabricCanvas) {
+      console.log('[upload] fabricCanvas not ready, storing pending upload');
+      pendingUploadRef.current = file;
+      return;
+    }
 
+    console.log('[upload] validating file');
     const validation = validateImageUpload(file);
     if (!validation.ok) {
+      console.log('[upload] validation failed:', validation.message);
       toast({ title: validation.message || 'Invalid file', variant: 'destructive' });
       return;
     }
 
+    console.log('[upload] reading file as data URL');
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
+      console.log('[upload] data URL loaded, setting background image');
       fabric.Image.fromURL(dataUrl, (img) => {
         img.set({ crossOrigin: 'anonymous' });
         fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
@@ -56,14 +64,30 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
         });
         fabricCanvas.renderAll();
+        console.log('[upload] background image set, updating hasContent');
         setHasContent(true);
         saveState();
         toast({ title: 'Image uploaded' });
       }, { crossOrigin: 'anonymous' });
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
   }, [fabricCanvas, saveState, toast]);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[upload] handleFileChange:start');
+    
+    const file = e.target.files?.[0];
+    console.log('[upload] selected file:', { exists: Boolean(file), type: file?.type, size: file?.size });
+    
+    if (!file) {
+      console.log('[upload] no file selected');
+      return;
+    }
+
+    await processUpload(file);
+    e.target.value = '';
+    console.log('[upload] handleFileChange:end');
+  }, [processUpload]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -202,13 +226,24 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
 
   // Update hasContent when fabricCanvas becomes available with background
   useEffect(() => {
+    console.log('[hasContent] useEffect fired, fabricCanvas:', Boolean(fabricCanvas), 'current hasContent:', hasContent);
     if (fabricCanvas) {
       const bg = fabricCanvas.backgroundImage;
+      console.log('[hasContent] backgroundImage:', Boolean(bg));
       if (bg && !hasContent) {
+        console.log('[hasContent] setting hasContent to true from backgroundImage');
         setHasContent(true);
       }
+
+      // Process pending upload if exists
+      if (pendingUploadRef.current) {
+        console.log('[upload] processing pending upload after canvas init');
+        const pendingFile = pendingUploadRef.current;
+        pendingUploadRef.current = null;
+        processUpload(pendingFile);
+      }
     }
-  }, [fabricCanvas, hasContent]);
+  }, [fabricCanvas, hasContent, processUpload]);
 
   // Route panel based on active mode
   const activePanel = (() => {
@@ -285,15 +320,15 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             className="hidden"
             onChange={handleFileChange}
           />
-          {hasContent ? (
-            <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+          <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+            {hasContent ? (
               <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
                 <Canvas />
               </div>
-            </main>
-          ) : (
-            <EditorEmptyState onUploadClick={handleUploadClick} />
-          )}
+            ) : (
+              <EditorEmptyState onUploadClick={handleUploadClick} />
+            )}
+          </main>
         </>
       }
     />

@@ -58,6 +58,7 @@ export function Canvas() {
 
     window.addEventListener('keydown', handleKeyDown);
     setFabricCanvas(canvas);
+    console.log('[canvas] fabricCanvas initialized and stored in zustand');
 
     // 6. Cleanup
     return () => {
