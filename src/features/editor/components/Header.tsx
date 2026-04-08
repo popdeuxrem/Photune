@@ -14,7 +14,7 @@ import { Download } from 'lucide-react';
 export function Header({ projectId, projectName }: { projectId: string; projectName: string }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { fabricCanvas, undo, redo, canUndo, canRedo } = useAppStore();
+  const { fabricCanvas, undo, redo, canUndo, canRedo, uploadedImageUrl } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -29,7 +29,10 @@ export function Header({ projectId, projectName }: { projectId: string; projectN
         multiplier: 0.2
       });
       
-      await saveProject(projectId, projectName, data, thumbnail);
+      // Use uploadedImageUrl if available, otherwise use thumbnail as fallback
+      const imageUrl = uploadedImageUrl || thumbnail;
+      
+      await saveProject(projectId, projectName, data, imageUrl);
       toast({ title: "Project Saved Successfully" });
     } catch (err) {
       console.error(err);

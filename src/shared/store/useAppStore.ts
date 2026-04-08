@@ -9,12 +9,14 @@ interface AppState {
   history: string[];
   historyIndex: number;
   jobs: Job[];
+  uploadedImageUrl: string | null;
   setFabricCanvas: (canvas: fabric.Canvas) => void;
   setActiveObject: (obj: fabric.Object | null) => void;
   addJob: (job: Job) => void;
   updateJob: (id: number, status: Job['status'], text?: string) => void;
   removeJob: (id: number) => void;
   saveState: () => void;
+  setUploadedImageUrl: (url: string | null) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -27,9 +29,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   history: [],
   historyIndex: -1,
   jobs: [],
+  uploadedImageUrl: null,
 
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setActiveObject: (obj) => set({ activeObject: obj }),
+  setUploadedImageUrl: (url) => set({ uploadedImageUrl: url }),
   
   addJob: (job) => set((state) => ({ jobs: [...state.jobs, job] })),
   updateJob: (id, status, text) => set((state) => ({

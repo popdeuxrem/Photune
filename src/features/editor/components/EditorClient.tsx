@@ -27,7 +27,7 @@ interface EditorClientProps {
 }
 
 export function EditorClient({ projectId, initialProjectData }: EditorClientProps) {
-  const { fabricCanvas, saveState, undo, redo, canUndo, canRedo } = useAppStore();
+  const { fabricCanvas, saveState, undo, redo, canUndo, canRedo, uploadedImageUrl, setUploadedImageUrl } = useAppStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasContent, setHasContent] = useState(false);
@@ -39,6 +39,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const [ingestionError, setIngestionError] = useState('');
   const [pendingUploadUrl, setPendingUploadUrl] = useState<string | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [uploadedImageDataUrl, setUploadedImageDataUrl] = useState<string | null>(null);
 
   const handleCanvasReady = useCallback(() => {
     console.log('[canvas] ready signal received');
@@ -68,6 +69,15 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
 
     setIngestionMessage('Preparing editor...');
     setIngestionState('processing');
+
+    // Read file as data URL for persistence
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setUploadedImageDataUrl(dataUrl);
+      setUploadedImageUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
 
     const objectUrl = URL.createObjectURL(file);
     setPendingUploadUrl(objectUrl);
@@ -239,6 +249,22 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     }
   }, [fabricCanvas, hasContent]);
 
+  // Restore uploaded image from initialProjectData.original_image_url on reload
+  useEffect(() => {
+    if (!fabricCanvas || !initialProjectData?.original_image_url || hasContent) return;
+    
+    console.log('[reload] restoring image from original_image_url');
+    fabric.Image.fromURL(initialProjectData.original_image_url, (img) => {
+      img.set({ crossOrigin: 'anonymous' });
+      fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+        scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
+        scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+      });
+      fabricCanvas.renderAll();
+      setHasContent(true);
+    }, { crossOrigin: 'anonymous' });
+  }, [fabricCanvas, initialProjectData, hasContent]);
+
   // Consume pending upload when canvas becomes ready
   useEffect(() => {
     console.log('[upload] checking pending consumption:', { isCanvasReady, pendingUploadUrl: Boolean(pendingUploadUrl), fabricCanvas: Boolean(fabricCanvas) });
@@ -262,7 +288,6 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         setIngestionMessage('');
         saveState();
         URL.revokeObjectURL(pendingUploadUrl);
-        toast({ title: 'Image uploaded' });
       }, { crossOrigin: 'anonymous' });
     };
     img.onerror = () => {
