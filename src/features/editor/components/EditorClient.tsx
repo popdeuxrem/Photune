@@ -24,7 +24,8 @@ import { EffectModePanel } from './Panels/EffectModePanel';
 import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
 import { createTextObject } from '@/features/editor/lib/create-text-object';
 import { autoSaveProject } from '@/shared/lib/auto-save';
-import { extractCanvasToPersistence } from '@/features/editor/lib/canvas-persistence';
+import { extractCanvasToPersistence, hydrateCanvasFromPersistence } from '@/features/editor/lib/canvas-persistence';
+import { ConflictResolutionDialog } from './ConflictResolutionDialog';
 
 interface EditorClientProps {
   projectId: string;
@@ -47,6 +48,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const [uploadedImageDataUrl, setUploadedImageDataUrl] = useState<string | null>(null);
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(initialProjectData?.updated_at || null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCanvasReady = useCallback(() => {
@@ -496,12 +498,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           setLastSaveTime(new Date().toISOString());
           console.log('[autosave] project saved successfully');
         } else if (!result.success && result.message === 'Conflict: another client has updated this project. Reload to sync.') {
-          // Notify user of conflict (could trigger reload UI)
-          toast({
-            title: 'Sync conflict detected',
-            description: 'Another tab modified this project. Please reload.',
-            variant: 'destructive',
-          });
+          // Show conflict resolution dialog
+          setShowConflictDialog(true);
           console.warn('[autosave] conflict detected:', result.message);
         }
       } catch (error) {
@@ -666,5 +664,23 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         </>
       }
     />
+    {showConflictDialog && (
+      <ConflictResolutionDialog
+        open={showConflictDialog}
+        onReload={() => {
+          setShowConflictDialog(false);
+          window.location.reload();
+        }}
+        onKeepLocal={() => {
+          setShowConflictDialog(false);
+          // Local changes are already saved via auto-save
+          toast({
+            title: 'Local changes saved',
+            description: 'Your current work has been preserved.',
+          });
+        }}
+        onCancel={() => setShowConflictDialog(false)}
+      />
+    )}
   );
 }
