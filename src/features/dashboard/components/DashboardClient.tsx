@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Grid3X3, List } from 'lucide-react';
 
@@ -29,7 +29,7 @@ export function DashboardClient({ userEmail = '' }: DashboardClientProps) {
   const { viewMode, setViewMode, searchQuery, setSearchQuery, sortMode, setSortMode } =
     useDashboardControls();
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjectsRef = useRef(async () => {
     setIsLoading(true);
 
     try {
@@ -45,11 +45,11 @@ export function DashboardClient({ userEmail = '' }: DashboardClientProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  });
 
   useEffect(() => {
-    void fetchProjects();
-  }, [fetchProjects]);
+    fetchProjectsRef.current();
+  }, []);
 
   const handleDelete = useCallback(
     async (id: string) => {
