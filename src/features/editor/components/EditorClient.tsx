@@ -251,9 +251,13 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
 
   // Restore uploaded image from initialProjectData.original_image_url on reload
   useEffect(() => {
-    if (!fabricCanvas || !initialProjectData?.original_image_url || hasContent) return;
+    console.log('[reload] checking restore conditions:', { 
+      fabricCanvas: Boolean(fabricCanvas), 
+      original_image_url: initialProjectData?.original_image_url 
+    });
+    if (!fabricCanvas || !initialProjectData?.original_image_url) return;
     
-    console.log('[reload] restoring image from original_image_url');
+    console.log('[reload] restoring image from original_image_url:', initialProjectData.original_image_url.substring(0, 50) + '...');
     fabric.Image.fromURL(initialProjectData.original_image_url, (img) => {
       img.set({ crossOrigin: 'anonymous' });
       fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
@@ -262,8 +266,9 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       });
       fabricCanvas.renderAll();
       setHasContent(true);
+      console.log('[reload] image restored successfully');
     }, { crossOrigin: 'anonymous' });
-  }, [fabricCanvas, initialProjectData, hasContent]);
+  }, [fabricCanvas, initialProjectData?.original_image_url]);
 
   // Consume pending upload when canvas becomes ready
   useEffect(() => {
