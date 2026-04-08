@@ -82,7 +82,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     const objectUrl = URL.createObjectURL(file);
     setPendingUploadUrl(objectUrl);
     setIngestionMessage('Waiting for editor to initialize...');
-  }, []);
+  }, [setUploadedImageUrl, toast]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('[upload] handleFileChange:start');
