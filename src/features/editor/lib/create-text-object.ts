@@ -9,18 +9,39 @@ type CreateTextObjectInput = {
 
 type EditableTextObject = fabric.IText | fabric.Textbox;
 
-function focusHiddenTextarea(textObject: EditableTextObject) {
+/**
+ * Focus hidden textarea and select all text with retry logic
+ * Handles timing issues where textarea may not be ready immediately
+ */
+function focusHiddenTextarea(textObject: EditableTextObject, retries = 0) {
   const textarea = (textObject as EditableTextObject & { hiddenTextarea?: HTMLTextAreaElement | null })
     .hiddenTextarea;
 
-  if (!textarea) return;
-
-  textarea.focus();
+  if (!textarea) {
+    // Retry if textarea not yet available (timing issue)
+    if (retries < 3) {
+      setTimeout(() => focusHiddenTextarea(textObject, retries + 1), 50);
+    }
+    return;
+  }
 
   try {
+    // Check if textarea is actually in the DOM and visible
+    if (!document.contains(textarea)) {
+      if (retries < 3) {
+        setTimeout(() => focusHiddenTextarea(textObject, retries + 1), 50);
+      }
+      return;
+    }
+
+    textarea.focus();
     textarea.setSelectionRange(0, textarea.value.length);
-  } catch {
-    // no-op
+    console.log('[text-edit] textarea focused and text selected');
+  } catch (err) {
+    console.error('[text-edit] failed to focus textarea:', err);
+    if (retries < 3) {
+      setTimeout(() => focusHiddenTextarea(textObject, retries + 1), 50);
+    }
   }
 }
 
@@ -70,21 +91,44 @@ export function createTextObject({
   canvas.setActiveObject(textObject);
   canvas.renderAll();
 
+  // Delayed setup to ensure canvas is ready and object is properly added
+  // Use single RAF instead of nested to avoid race conditions
   requestAnimationFrame(() => {
-    canvas.setActiveObject(textObject);
-    textObject.enterEditing();
-
     try {
-      textObject.selectAll();
-    } catch {
-      // no-op
+      // Verify object is still on canvas
+      if (!canvas.contains(textObject)) {
+        console.warn('[text-edit] object removed from canvas during setup');
+        return;
+      }
+
+      // Re-set active object to ensure it's current
+      canvas.setActiveObject(textObject);
+
+      // Check if not already editing before calling enterEditing
+      if (!textObject.isEditing) {
+        textObject.enterEditing();
+        console.log('[text-edit] entered editing mode');
+      }
+
+      // Select all text with error handling
+      if (textObject.isEditing) {
+        try {
+          textObject.selectAll();
+          console.log('[text-edit] text selected');
+        } catch (err) {
+          console.warn('[text-edit] selectAll failed:', err);
+        }
+      }
+
+      canvas.renderAll();
+
+      // Defer textarea focus to next frame to ensure textarea is DOM-ready
+      requestAnimationFrame(() => {
+        focusHiddenTextarea(textObject);
+      });
+    } catch (err) {
+      console.error('[text-edit] error during text object setup:', err);
     }
-
-    canvas.renderAll();
-
-    requestAnimationFrame(() => {
-      focusHiddenTextarea(textObject);
-    });
   });
 
   return textObject;

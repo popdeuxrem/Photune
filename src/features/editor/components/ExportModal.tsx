@@ -4,39 +4,61 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Download, FileImage, Loader2, Crown, Zap } from 'lucide-react';
+import { Download, FileImage, Loader2, Crown, Zap, AlertCircle } from 'lucide-react';
 import { useAppStore } from '@/shared/store/useAppStore';
 import { exportCanvas, ExportFormat } from '../lib/export-utils';
 import { useSubscription } from '@/shared/components/subscription-provider';
+import { startExportTransaction, commitExportTransaction, rollbackExportTransaction } from '../lib/export-transaction';
 
 export function ExportModal() {
   const [format, setFormat] = useState<ExportFormat>('png');
   const [scale, setScale] = useState('2');
   const [quality, setQuality] = useState('90');
   const [loading, setLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const { fabricCanvas } = useAppStore();
   const { subscription, canUseFeature } = useSubscription();
 
   const handleExport = async () => {
     if (!fabricCanvas) return;
+    
     setLoading(true);
+    setExportError(null);
+    
+    const transactionId = `export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     
     try {
+      // Start transaction with rollback capability
+      const transaction = startExportTransaction(fabricCanvas, format, transactionId);
+      
       const multiplier = parseInt(scale);
       const qualityValue = parseInt(quality) / 100;
       
       // Check if watermark should be applied (free tier)
       const shouldWatermark = subscription.tier === 'free';
       
-      await exportCanvas(fabricCanvas, {
+      const result = await exportCanvas(fabricCanvas, {
         format,
         multiplier,
         quality: qualityValue,
         watermark: shouldWatermark,
         watermarkText: 'Photune',
       });
+      
+      // Commit transaction if export succeeded
+      commitExportTransaction(transactionId);
+      console.log('[export] transaction committed successfully');
+      
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('[export] export failed, rolling back:', error);
+      setExportError(
+        error instanceof Error 
+          ? error.message 
+          : 'Export failed. Please try again.'
+      );
+      
+      // Rollback to preserve canvas state
+      rollbackExportTransaction(transactionId);
     } finally {
       setLoading(false);
     }
@@ -133,6 +155,16 @@ export function ExportModal() {
                 <p className="text-xs text-green-600 dark:text-green-500 mt-1">
                   Clean export, no watermark. Thanks for supporting Photune!
                 </p>
+              </div>
+            </div>
+          )}
+
+          {exportError && (
+            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl border border-red-200 dark:border-red-800 flex items-start gap-3">
+              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+              <div>
+                <p className="text-xs font-bold text-red-700 dark:text-red-400">Export Error</p>
+                <p className="text-xs text-red-600 dark:text-red-500 mt-1">{exportError}</p>
               </div>
             </div>
           )}

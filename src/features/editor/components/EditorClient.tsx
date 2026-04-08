@@ -353,57 +353,108 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         hasOriginalImageUrl: Boolean(initialProjectData?.original_image_url),
       });
 
-      // Priority 1: durable uploaded image restore
+      // Priority 1: durable uploaded image restore with error handling
       if (initialProjectData?.original_image_url) {
         console.log('[reload] restoring from original_image_url');
-        fabric.Image.fromURL(
-          initialProjectData.original_image_url,
-          (img) => {
-            if (cancelled) return;
+        
+        try {
+          fabric.Image.fromURL(
+            initialProjectData.original_image_url,
+            (img) => {
+              if (cancelled) return;
 
-            img.set({ crossOrigin: 'anonymous' });
-            tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
-            applyLayerLockState(img, true);
-            fabricCanvas.setBackgroundImage(
-              img,
-              fabricCanvas.renderAll.bind(fabricCanvas),
-              {
-                scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
-                scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+              try {
+                img.set({ crossOrigin: 'anonymous' });
+                tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
+                applyLayerLockState(img, true);
+                fabricCanvas.setBackgroundImage(
+                  img,
+                  fabricCanvas.renderAll.bind(fabricCanvas),
+                  {
+                    scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
+                    scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+                  }
+                );
+
+                fabricCanvas.renderAll();
+                setHasContent(true);
+                console.log('[reload] original_image_url restored successfully');
+              } catch (restoreErr) {
+                console.error('[reload] error setting background image:', restoreErr);
+                setIngestionError('Failed to restore image. Canvas reset.');
               }
-            );
-
-            fabricCanvas.renderAll();
-            setHasContent(true);
-            console.log('[reload] original_image_url restored successfully');
-          },
-          { crossOrigin: 'anonymous' }
-        );
+            },
+            { crossOrigin: 'anonymous' },
+            (error: any) => {
+              if (cancelled) return;
+              console.error('[reload] image fromURL failed:', error);
+              setIngestionError('Failed to load saved image. Canvas reset.');
+            }
+          );
+        } catch (err) {
+          console.error('[reload] image restore error:', err);
+          setIngestionError('Unexpected error loading image. Canvas reset.');
+        }
         return;
       }
 
-      // Priority 2: fallback restore from canvas_data
+      // Priority 2: fallback restore from canvas_data with validation
       if (initialProjectData?.canvas_data) {
         console.log('[reload] restoring from canvas_data');
         (fabricCanvas as any).isImporting = true;
 
-        fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
-          if (cancelled) return;
+        try {
+          // Validate JSON before loading
+          let parsedJson: any;
+          try {
+            parsedJson = JSON.parse(initialProjectData.canvas_data);
+          } catch (parseErr) {
+            throw new Error(`Invalid canvas JSON: ${String(parseErr)}`);
+          }
 
-          fabricCanvas.getObjects().forEach((obj, index) => {
-            const objects = fabricCanvas.getObjects();
-            const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
-            if (tagged.photuneRole === 'background') {
-              applyLayerLockState(tagged, true);
+          // Check basic structure
+          if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(parsedJson.objects)) {
+            throw new Error('Canvas data missing required structure');
+          }
+
+          // Load with error handling
+          fabricCanvas.loadFromJSON(initialProjectData.canvas_data, 
+            () => {
+              if (cancelled) return;
+
+              try {
+                // Re-tag all objects after restore
+                fabricCanvas.getObjects().forEach((obj, index) => {
+                  const objects = fabricCanvas.getObjects();
+                  const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
+                  if (tagged.photuneRole === 'background') {
+                    applyLayerLockState(tagged, true);
+                  }
+                });
+
+                fabricCanvas.renderAll();
+                (fabricCanvas as any).isImporting = false;
+                setHasContent(true);
+                console.log('[reload] canvas_data restored successfully');
+                saveState();
+              } catch (restoreErr) {
+                console.error('[reload] error re-tagging objects:', restoreErr);
+                (fabricCanvas as any).isImporting = false;
+                setIngestionError('Failed to restore canvas objects. Starting fresh.');
+              }
+            },
+            (error: any) => {
+              if (cancelled) return;
+              console.error('[reload] canvas loadFromJSON failed:', error);
+              (fabricCanvas as any).isImporting = false;
+              setIngestionError('Failed to load saved canvas data. Starting fresh.');
             }
-          });
-
-          fabricCanvas.renderAll();
+          );
+        } catch (err) {
+          console.error('[reload] canvas restore error:', err);
           (fabricCanvas as any).isImporting = false;
-          setHasContent(true);
-          console.log('[reload] canvas_data restored successfully');
-          saveState();
-        });
+          setIngestionError('Saved canvas data is corrupted. Starting fresh.');
+        }
       }
     };
 
@@ -413,6 +464,20 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       cancelled = true;
     };
   }, [fabricCanvas, initialProjectData, saveState]);
+
+  // Log canvas hydration status for debugging
+  useEffect(() => {
+    if (hasContent && fabricCanvas) {
+      const objects = fabricCanvas.getObjects();
+      const bgImage = fabricCanvas.backgroundImage;
+      console.log('[hydration-complete]', {
+        objectCount: objects.length,
+        hasBackgroundImage: !!bgImage,
+        backgroundImageDims: bgImage ? { w: bgImage.width, h: bgImage.height } : null,
+        firstObjectType: objects[0]?.type || null,
+      });
+    }
+  }, [hasContent, fabricCanvas]);
 
   // Update hasContent when fabricCanvas becomes available with background
   useEffect(() => {
