@@ -357,33 +357,35 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             onChange={handleFileChange}
           />
           <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-            {(ingestionState === 'uploading' || ingestionState === 'processing') ? (
+            {/* Always render canvas - overlay shows when loading */}
+            <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
+              <Canvas onReady={handleCanvasReady} />
+            </div>
+            
+            {/* Overlay for empty state */}
+            {!hasContent && ingestionState === 'idle' && (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+                <EditorEmptyState onUploadClick={handleUploadClick} />
+              </div>
+            )}
+            
+            {/* Overlay for loading states */}
+            {(ingestionState === 'uploading' || ingestionState === 'processing') && (
+              <div className="absolute inset-0 flex items-center justify-center bg-zinc-50/90 dark:bg-zinc-900/90">
                 <EditorIngestionStatus
                   state={ingestionState}
                   message={ingestionMessage}
                 />
               </div>
-            ) : ingestionState === 'error' ? (
+            )}
+            
+            {/* Overlay for error state */}
+            {ingestionState === 'error' && (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
                 <EditorIngestionStatus
                   state="error"
                   errorMessage={ingestionError}
                   onRetry={handleUploadClick}
-                />
-              </div>
-            ) : hasContent ? (
-              <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
-                <Canvas onReady={handleCanvasReady} />
-              </div>
-            ) : (
-              <EditorEmptyState onUploadClick={handleUploadClick} />
-            )}
-            {hasContent && (ingestionState === 'uploading' || ingestionState === 'processing') && (
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-50/90 dark:bg-zinc-900/90">
-                <EditorIngestionStatus
-                  state={ingestionState}
-                  message={ingestionMessage}
                 />
               </div>
             )}
