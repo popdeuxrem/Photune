@@ -342,72 +342,55 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   }, [handleKeyDown]);
 
   // Single deterministic restore path on reload
+  // Track if we've already attempted hydration to prevent duplicates
+  const hasAttemptedHydrationRef = useRef(false);
+  
   useEffect(() => {
     if (!fabricCanvas) return;
+    
+    // Prevent duplicate hydration on re-renders
+    if (hasAttemptedHydrationRef.current) {
+      console.log('[reload] skipping duplicate hydration attempt');
+      return;
+    }
+    
+    // Skip hydration if canvas already has content (user uploaded new image)
+    if (fabricCanvas.getObjects().length > 0 || fabricCanvas.backgroundImage) {
+      console.log('[reload] canvas already has content, skipping hydration');
+      hasAttemptedHydrationRef.current = true;
+      return;
+    }
 
     let cancelled = false;
+    hasAttemptedHydrationRef.current = true;
 
     const restore = async () => {
+      const hasCanvasData = Boolean(initialProjectData?.canvas_data);
+      const hasOriginalImageUrl = Boolean(initialProjectData?.original_image_url);
+      
       console.log('[reload] checking restore options:', {
-        hasCanvasData: Boolean(initialProjectData?.canvas_data),
-        hasOriginalImageUrl: Boolean(initialProjectData?.original_image_url),
+        hasCanvasData,
+        hasOriginalImageUrl,
+        canvasObjectCount: fabricCanvas.getObjects().length,
       });
-
-      // Priority 1: durable uploaded image restore with error handling
-      if (initialProjectData?.original_image_url) {
-        console.log('[reload] restoring from original_image_url');
-        
-        try {
-          fabric.Image.fromURL(
-            initialProjectData.original_image_url,
-            (img) => {
-              if (cancelled) return;
-
-              try {
-                img.set({ crossOrigin: 'anonymous' });
-                tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
-                applyLayerLockState(img, true);
-                fabricCanvas.setBackgroundImage(
-                  img,
-                  fabricCanvas.renderAll.bind(fabricCanvas),
-                  {
-                    scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
-                    scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
-                  }
-                );
-
-                fabricCanvas.renderAll();
-                setHasContent(true);
-                console.log('[reload] original_image_url restored successfully');
-              } catch (restoreErr) {
-                console.error('[reload] error setting background image:', restoreErr);
-                setIngestionError('Failed to restore image. Canvas reset.');
-              }
-            },
-            { crossOrigin: 'anonymous' },
-            (error: any) => {
-              if (cancelled) return;
-              console.error('[reload] image fromURL failed:', error);
-              setIngestionError('Failed to load saved image. Canvas reset.');
-            }
-          );
-        } catch (err) {
-          console.error('[reload] image restore error:', err);
-          setIngestionError('Unexpected error loading image. Canvas reset.');
-        }
+      
+      // Nothing to restore
+      if (!hasCanvasData && !hasOriginalImageUrl) {
+        console.log('[reload] no saved data to restore');
         return;
       }
 
-      // Priority 2: fallback restore from canvas_data with validation
-      if (initialProjectData?.canvas_data) {
+      (fabricCanvas as any).isImporting = true;
+
+      // Step 1: Restore canvas_data (includes all objects + their positions)
+      if (hasCanvasData) {
         console.log('[reload] restoring from canvas_data');
-        (fabricCanvas as any).isImporting = true;
 
         try {
           // Validate JSON before loading
           let parsedJson: any;
           try {
-            parsedJson = JSON.parse(initialProjectData.canvas_data);
+            parsedJson = JSON.parse(initialProjectData!.canvas_data!);
           } catch (parseErr) {
             throw new Error(`Invalid canvas JSON: ${String(parseErr)}`);
           }
@@ -416,46 +399,125 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           if (!parsedJson || typeof parsedJson !== 'object' || !Array.isArray(parsedJson.objects)) {
             throw new Error('Canvas data missing required structure');
           }
+          
+          // Check for unreasonable object count (potential corruption)
+          if (parsedJson.objects.length > 10000) {
+            throw new Error('Canvas data has too many objects (possible corruption)');
+          }
 
-          // Load with error handling
-          fabricCanvas.loadFromJSON(initialProjectData.canvas_data, 
-            () => {
-              if (cancelled) return;
+          // Load canvas JSON
+          await new Promise<void>((resolve, reject) => {
+            fabricCanvas.loadFromJSON(
+              initialProjectData!.canvas_data!, 
+              () => {
+                if (cancelled) {
+                  reject(new Error('Cancelled'));
+                  return;
+                }
 
-              try {
-                // Re-tag all objects after restore
-                fabricCanvas.getObjects().forEach((obj, index) => {
-                  const objects = fabricCanvas.getObjects();
-                  const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
-                  if (tagged.photuneRole === 'background') {
-                    applyLayerLockState(tagged, true);
-                  }
-                });
+                try {
+                  // Re-tag objects that don't have layer metadata
+                  // Preserve existing metadata for objects that already have it
+                  fabricCanvas.getObjects().forEach((obj, index) => {
+                    const objects = fabricCanvas.getObjects();
+                    const existingRole = (obj as any).photuneRole;
+                    
+                    if (existingRole) {
+                      // Object already has layer metadata from persistence
+                      // Just ensure lock state is correct for background
+                      if (existingRole === 'background') {
+                        applyLayerLockState(obj, true);
+                      }
+                    } else {
+                      // Object missing metadata, infer and tag
+                      const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
+                      if (tagged.photuneRole === 'background') {
+                        applyLayerLockState(tagged, true);
+                      }
+                    }
+                  });
 
-                fabricCanvas.renderAll();
-                (fabricCanvas as any).isImporting = false;
-                setHasContent(true);
-                console.log('[reload] canvas_data restored successfully');
-                saveState();
-              } catch (restoreErr) {
-                console.error('[reload] error re-tagging objects:', restoreErr);
-                (fabricCanvas as any).isImporting = false;
-                setIngestionError('Failed to restore canvas objects. Starting fresh.');
+                  console.log('[reload] canvas_data loaded, objects:', fabricCanvas.getObjects().length);
+                  resolve();
+                } catch (restoreErr) {
+                  reject(restoreErr);
+                }
+              },
+              (error: any) => {
+                reject(new Error(`loadFromJSON failed: ${String(error)}`));
               }
-            },
-            (error: any) => {
-              if (cancelled) return;
-              console.error('[reload] canvas loadFromJSON failed:', error);
-              (fabricCanvas as any).isImporting = false;
-              setIngestionError('Failed to load saved canvas data. Starting fresh.');
-            }
-          );
+            );
+          });
+          
+          fabricCanvas.renderAll();
+          setHasContent(true);
+          saveState();
+          console.log('[reload] canvas_data restored successfully');
+          
         } catch (err) {
-          console.error('[reload] canvas restore error:', err);
-          (fabricCanvas as any).isImporting = false;
-          setIngestionError('Saved canvas data is corrupted. Starting fresh.');
+          console.error('[reload] canvas_data restore error:', err);
+          // Don't set error yet - try image fallback
         }
       }
+
+      // Step 2: Restore background image if canvas_data didn't include it
+      // or if canvas_data failed but we have an image URL
+      if (hasOriginalImageUrl && !fabricCanvas.backgroundImage) {
+        console.log('[reload] restoring background image');
+        
+        try {
+          await new Promise<void>((resolve, reject) => {
+            fabric.Image.fromURL(
+              initialProjectData!.original_image_url!,
+              (img) => {
+                if (cancelled) {
+                  reject(new Error('Cancelled'));
+                  return;
+                }
+
+                try {
+                  img.set({ crossOrigin: 'anonymous' });
+                  tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
+                  applyLayerLockState(img, true);
+                  
+                  fabricCanvas.setBackgroundImage(
+                    img,
+                    () => {
+                      fabricCanvas.renderAll();
+                      console.log('[reload] background image set');
+                      resolve();
+                    },
+                    {
+                      scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
+                      scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+                    }
+                  );
+                } catch (imgErr) {
+                  reject(imgErr);
+                }
+              },
+              { crossOrigin: 'anonymous' }
+            );
+          });
+          
+          setHasContent(true);
+          if (!hasCanvasData) {
+            saveState(); // Only save if we didn't already save from canvas_data
+          }
+          console.log('[reload] background image restored successfully');
+          
+        } catch (err) {
+          console.error('[reload] image restore error:', err);
+          setIngestionError('Failed to restore saved image.');
+        }
+      }
+
+      (fabricCanvas as any).isImporting = false;
+      
+      // Final verification
+      const finalObjects = fabricCanvas.getObjects().length;
+      const hasBgImage = Boolean(fabricCanvas.backgroundImage);
+      console.log('[reload] hydration complete:', { finalObjects, hasBgImage });
     };
 
     restore();
@@ -465,15 +527,30 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     };
   }, [fabricCanvas, initialProjectData, saveState]);
 
-  // Log canvas hydration status for debugging
+  // Log canvas hydration status for debugging and verification
   useEffect(() => {
     if (hasContent && fabricCanvas) {
       const objects = fabricCanvas.getObjects();
       const bgImage = fabricCanvas.backgroundImage;
+      
+      // Count objects by layer role
+      const layerRoles = objects.reduce((acc, obj) => {
+        const role = (obj as any).photuneRole || 'unknown';
+        acc[role] = (acc[role] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Check for locked backgrounds
+      const lockedBackgrounds = objects.filter(
+        (obj) => (obj as any).photuneRole === 'background' && obj.lockMovementX
+      ).length;
+      
       console.log('[hydration-complete]', {
         objectCount: objects.length,
         hasBackgroundImage: !!bgImage,
         backgroundImageDims: bgImage ? { w: bgImage.width, h: bgImage.height } : null,
+        layerRoles,
+        lockedBackgrounds,
         firstObjectType: objects[0]?.type || null,
       });
     }

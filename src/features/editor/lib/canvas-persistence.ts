@@ -156,13 +156,29 @@ export async function hydrateCanvasFromPersistence(
 /**
  * Extract current canvas state for persistence
  * Includes canvas JSON + uploaded image URL
+ * Preserves layer metadata (photuneRole, photuneLayerId, locked state)
  */
 export function extractCanvasToPersistence(
   canvas: fabric.Canvas,
   imageUrl: string,
 ): CanvasPersistenceData {
+  // Include all Photune layer metadata in serialization
   const canvasJson = JSON.stringify(
-    canvas.toJSON(['isImporting', 'selectable', 'hasControls']),
+    canvas.toJSON([
+      'isImporting',
+      'selectable',
+      'hasControls',
+      'evented',
+      'lockMovementX',
+      'lockMovementY',
+      'lockRotation',
+      'lockScalingX',
+      'lockScalingY',
+      // Photune layer system properties
+      'photuneRole',
+      'photuneLayerId',
+      'photunePriority',
+    ]),
   );
 
   return {
