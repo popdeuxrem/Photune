@@ -28,7 +28,7 @@ interface EditorClientProps {
 }
 
 export function EditorClient({ projectId, initialProjectData }: EditorClientProps) {
-  const { fabricCanvas, saveState, undo, redo, canUndo, canRedo, uploadedImageUrl, setUploadedImageUrl } = useAppStore();
+  const { fabricCanvas, activeObject, saveState, undo, redo, canUndo, canRedo, uploadedImageUrl, setUploadedImageUrl } = useAppStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasContent, setHasContent] = useState(false);
@@ -84,6 +84,56 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     setPendingUploadUrl(objectUrl);
     setIngestionMessage('Waiting for editor to initialize...');
   }, [setUploadedImageUrl, toast]);
+
+  const handleUpdateTextStyle = useCallback(
+    (input: {
+      fontSize?: number;
+      textAlign?: 'left' | 'center' | 'right' | 'justify';
+      charSpacing?: number;
+      lineHeight?: number;
+    }) => {
+      if (!fabricCanvas || !activeObject) return;
+
+      const isTextObject =
+        activeObject.type === 'i-text' ||
+        activeObject.type === 'text' ||
+        activeObject.type === 'textbox';
+
+      if (!isTextObject) return;
+
+      activeObject.set({
+        fontSize: typeof input.fontSize === 'number' ? input.fontSize : (activeObject as any).fontSize,
+        textAlign: typeof input.textAlign === 'string' ? input.textAlign : (activeObject as any).textAlign,
+        charSpacing: typeof input.charSpacing === 'number' ? input.charSpacing : (activeObject as any).charSpacing,
+        lineHeight: typeof input.lineHeight === 'number' ? input.lineHeight : (activeObject as any).lineHeight,
+      } as Record<string, unknown>);
+
+      fabricCanvas.renderAll();
+      saveState();
+    },
+    [activeObject, fabricCanvas, saveState]
+  );
+
+  const handleApplyFontSuggestion = useCallback(
+    (input: { family: string; weight: string }) => {
+      if (!fabricCanvas || !activeObject) return;
+
+      const isTextObject =
+        activeObject.type === 'i-text' ||
+        activeObject.type === 'text' ||
+        activeObject.type === 'textbox';
+
+      if (!isTextObject) return;
+
+      const textObject = activeObject as fabric.IText | fabric.Text | fabric.Textbox;
+      textObject.fontFamily = input.family;
+      textObject.fontWeight = input.weight;
+
+      fabricCanvas.renderAll();
+      saveState();
+    },
+    [activeObject, fabricCanvas, saveState]
+  );
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('[upload] handleFileChange:start');
@@ -345,7 +395,20 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         return (
           <TextModePanel
             hasContent={hasContent}
-            hasTextSelected={false}
+            hasTextSelected={
+              activeObject?.type === 'i-text' ||
+              activeObject?.type === 'text' ||
+              activeObject?.type === 'textbox'
+            }
+            imageDataUrl={uploadedImageUrl || initialProjectData?.original_image_url || null}
+            onApplyFontSuggestion={handleApplyFontSuggestion}
+            selectedTextStyle={{
+              fontSize: (activeObject as any)?.fontSize || 40,
+              textAlign: (activeObject as any)?.textAlign || 'left',
+              charSpacing: (activeObject as any)?.charSpacing || 0,
+              lineHeight: (activeObject as any)?.lineHeight || 1.16,
+            }}
+            onUpdateTextStyle={handleUpdateTextStyle}
           />
         );
       case 'erase':
