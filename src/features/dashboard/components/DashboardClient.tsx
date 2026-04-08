@@ -21,6 +21,8 @@ type Project = {
 
 type ViewMode = 'grid' | 'list';
 
+const DASHBOARD_VIEW_MODE_KEY = 'photune.dashboard.viewMode';
+
 function normalizeProjects(input: unknown): Project[] {
   if (!Array.isArray(input)) return [];
 
@@ -72,6 +74,27 @@ export function DashboardClient() {
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
+
+  // Restore view mode from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(DASHBOARD_VIEW_MODE_KEY);
+      if (stored === 'grid' || stored === 'list') {
+        setViewMode(stored);
+      }
+    } catch (error) {
+      console.warn('Failed to restore dashboard view mode:', error);
+    }
+  }, []);
+
+  // Persist view mode when it changes
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DASHBOARD_VIEW_MODE_KEY, viewMode);
+    } catch (error) {
+      console.warn('Failed to persist dashboard view mode:', error);
+    }
+  }, [viewMode]);
 
   const handleDelete = useCallback(
     async (id: string) => {
