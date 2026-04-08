@@ -3,6 +3,7 @@
 export type EditorMode =
   | 'upload'
   | 'text'
+  | 'effect'
   | 'erase'
   | 'rewrite'
   | 'background'
@@ -18,6 +19,7 @@ type ModeItem = {
 const MODES: ModeItem[] = [
   { id: 'upload', label: 'Upload', icon: '↑' },
   { id: 'text', label: 'Text', icon: 'T' },
+  { id: 'effect', label: 'Effect', icon: '✎' },
   { id: 'erase', label: 'Erase', icon: '⌫' },
   { id: 'rewrite', label: 'Rewrite', icon: '✎' },
   { id: 'background', label: 'Background', icon: '▭' },

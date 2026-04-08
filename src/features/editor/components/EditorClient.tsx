@@ -20,6 +20,7 @@ import { EraseModePanel } from './Panels/EraseModePanel';
 import { RewriteModePanel } from './Panels/RewriteModePanel';
 import { BackgroundModePanel } from './Panels/BackgroundModePanel';
 import { LayersModePanel } from './Panels/LayersModePanel';
+import { EffectModePanel } from './Panels/EffectModePanel';
 import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
 import { createTextObject } from '@/features/editor/lib/create-text-object';
 
@@ -108,6 +109,82 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         charSpacing: typeof input.charSpacing === 'number' ? input.charSpacing : (activeObject as any).charSpacing,
         lineHeight: typeof input.lineHeight === 'number' ? input.lineHeight : (activeObject as any).lineHeight,
       } as Record<string, unknown>);
+
+      fabricCanvas.renderAll();
+      saveState();
+    },
+    [activeObject, fabricCanvas, saveState]
+  );
+
+  const handleUpdateTextEffects = useCallback(
+    (input: {
+      fill?: string;
+      stroke?: string;
+      strokeWidth?: number;
+      opacity?: number;
+      shadowColor?: string;
+      shadowBlur?: number;
+      shadowOffsetX?: number;
+      shadowOffsetY?: number;
+    }) => {
+      if (!fabricCanvas || !activeObject) return;
+
+      const isTextObject =
+        activeObject.type === 'i-text' ||
+        activeObject.type === 'text' ||
+        activeObject.type === 'textbox';
+
+      if (!isTextObject) return;
+
+      const textObject = activeObject as fabric.IText | fabric.Text | fabric.Textbox;
+
+      if (typeof input.fill === 'string') {
+        textObject.fill = input.fill;
+      }
+
+      if (typeof input.stroke === 'string') {
+        textObject.stroke = input.stroke;
+      }
+
+      if (typeof input.strokeWidth === 'number') {
+        textObject.strokeWidth = input.strokeWidth;
+      }
+
+      if (typeof input.opacity === 'number') {
+        textObject.opacity = input.opacity;
+      }
+
+      const nextShadowColor =
+        typeof input.shadowColor === 'string'
+          ? input.shadowColor
+          : ((textObject.shadow as fabric.Shadow | undefined)?.color as string | undefined) || '#000000';
+
+      const nextShadowBlur =
+        typeof input.shadowBlur === 'number'
+          ? input.shadowBlur
+          : ((textObject.shadow as fabric.Shadow | undefined)?.blur ?? 0);
+
+      const nextShadowOffsetX =
+        typeof input.shadowOffsetX === 'number'
+          ? input.shadowOffsetX
+          : ((textObject.shadow as fabric.Shadow | undefined)?.offsetX ?? 0);
+
+      const nextShadowOffsetY =
+        typeof input.shadowOffsetY === 'number'
+          ? input.shadowOffsetY
+          : ((textObject.shadow as fabric.Shadow | undefined)?.offsetY ?? 0);
+
+      const shouldApplyShadow =
+        nextShadowBlur > 0 || nextShadowOffsetX !== 0 || nextShadowOffsetY !== 0;
+
+      (textObject.shadow as fabric.Shadow | null | undefined) = shouldApplyShadow
+        ? new fabric.Shadow({
+            color: nextShadowColor,
+            blur: nextShadowBlur,
+            offsetX: nextShadowOffsetX,
+            offsetY: nextShadowOffsetY,
+          })
+        : null;
 
       fabricCanvas.renderAll();
       saveState();
@@ -429,6 +506,28 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         return (
           <EraseModePanel
             hasContent={hasContent}
+          />
+        );
+      case 'effect':
+        return (
+          <EffectModePanel
+            hasContent={hasContent}
+            hasTextSelected={
+              activeObject?.type === 'i-text' ||
+              activeObject?.type === 'text' ||
+              activeObject?.type === 'textbox'
+            }
+            selectedTextEffects={{
+              fill: (activeObject as any)?.fill || '#111111',
+              stroke: (activeObject as any)?.stroke || '#000000',
+              strokeWidth: (activeObject as any)?.strokeWidth || 0,
+              opacity: (activeObject as any)?.opacity ?? 1,
+              shadowColor: ((activeObject as any)?.shadow as any)?.color || '#000000',
+              shadowBlur: ((activeObject as any)?.shadow as any)?.blur ?? 0,
+              shadowOffsetX: ((activeObject as any)?.shadow as any)?.offsetX ?? 0,
+              shadowOffsetY: ((activeObject as any)?.shadow as any)?.offsetY ?? 0,
+            }}
+            onUpdateTextEffects={handleUpdateTextEffects}
           />
         );
       case 'rewrite':
