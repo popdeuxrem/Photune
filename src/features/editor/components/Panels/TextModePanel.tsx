@@ -18,6 +18,7 @@ type TextModePanelProps = {
   hasTextSelected: boolean;
   imageDataUrl?: string | null;
   onApplyFontSuggestion?: (input: { family: string; weight: string }) => void;
+  onAddText?: () => void;
   selectedTextStyle?: SelectedTextStyle;
   onUpdateTextStyle?: (input: Partial<SelectedTextStyle>) => void;
 };
@@ -27,6 +28,7 @@ export function TextModePanel({
   hasTextSelected,
   imageDataUrl = null,
   onApplyFontSuggestion,
+  onAddText,
   selectedTextStyle,
   onUpdateTextStyle,
 }: TextModePanelProps) {
@@ -99,6 +101,28 @@ export function TextModePanel({
             ? 'Edit the currently selected text.'
             : 'Select a text object to activate typographic controls.'}
         </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Add text
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Insert a new editable text object onto the canvas.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onAddText}
+            disabled={!hasContent || !onAddText}
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add text
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-muted/30 p-4">

@@ -21,6 +21,7 @@ import { RewriteModePanel } from './Panels/RewriteModePanel';
 import { BackgroundModePanel } from './Panels/BackgroundModePanel';
 import { LayersModePanel } from './Panels/LayersModePanel';
 import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
+import { createTextObject } from '@/features/editor/lib/create-text-object';
 
 interface EditorClientProps {
   projectId: string;
@@ -113,6 +114,18 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     },
     [activeObject, fabricCanvas, saveState]
   );
+
+  const handleAddText = useCallback(() => {
+    if (!fabricCanvas) return;
+
+    createTextObject({
+      canvas: fabricCanvas,
+      text: 'New Text',
+    });
+
+    saveState();
+    setActiveMode('text');
+  }, [fabricCanvas, saveState]);
 
   const handleApplyFontSuggestion = useCallback(
     (input: { family: string; weight: string }) => {
@@ -401,6 +414,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
               activeObject?.type === 'textbox'
             }
             imageDataUrl={uploadedImageUrl || initialProjectData?.original_image_url || null}
+            onAddText={handleAddText}
             onApplyFontSuggestion={handleApplyFontSuggestion}
             selectedTextStyle={{
               fontSize: (activeObject as any)?.fontSize || 40,
