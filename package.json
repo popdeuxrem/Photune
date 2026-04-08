@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm run build && npm run smoke",
     "smoke:projects": "node scripts/smoke-projects.mjs",
-    "smoke": "npm run smoke:projects && npm run smoke:providers",
+    "smoke:persistence": "node scripts/smoke-persistence.mjs",
+    "smoke": "npm run smoke:projects && npm run smoke:providers && npm run smoke:persistence",
     "smoke:providers": "node scripts/smoke-provider-policy.mjs",
     "providers:classify": "./scripts/classify-provider-surface.sh"
   },

@@ -23,6 +23,8 @@ import { LayersModePanel } from './Panels/LayersModePanel';
 import { EffectModePanel } from './Panels/EffectModePanel';
 import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
 import { createTextObject } from '@/features/editor/lib/create-text-object';
+import { autoSaveProject } from '@/shared/lib/auto-save';
+import { extractCanvasToPersistence } from '@/features/editor/lib/canvas-persistence';
 
 interface EditorClientProps {
   projectId: string;
@@ -43,6 +45,9 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const [pendingUploadUrl, setPendingUploadUrl] = useState<string | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [uploadedImageDataUrl, setUploadedImageDataUrl] = useState<string | null>(null);
+  const [lastSaveTime, setLastSaveTime] = useState<string | null>(initialProjectData?.updated_at || null);
+  const [isSaving, setIsSaving] = useState(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCanvasReady = useCallback(() => {
     console.log('[canvas] ready signal received');
@@ -464,6 +469,54 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       setIngestionMessage('');
     }
   }, [hasContent]);
+
+  // Auto-save effect: debounced save to Supabase every 30 seconds
+  useEffect(() => {
+    if (!fabricCanvas || !hasContent) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearInterval(autoSaveTimerRef.current);
+    }
+
+    // Set new auto-save timer
+    autoSaveTimerRef.current = setInterval(async () => {
+      try {
+        setIsSaving(true);
+        const { canvasJson, imageUrl } = extractCanvasToPersistence(fabricCanvas, uploadedImageDataUrl || '');
+        
+        const result = await autoSaveProject(
+          projectId,
+          canvasJson,
+          imageUrl,
+          lastSaveTime,
+        );
+
+        if (result.success && result.saved) {
+          setLastSaveTime(new Date().toISOString());
+          console.log('[autosave] project saved successfully');
+        } else if (!result.success && result.message === 'Conflict: another client has updated this project. Reload to sync.') {
+          // Notify user of conflict (could trigger reload UI)
+          toast({
+            title: 'Sync conflict detected',
+            description: 'Another tab modified this project. Please reload.',
+            variant: 'destructive',
+          });
+          console.warn('[autosave] conflict detected:', result.message);
+        }
+      } catch (error) {
+        console.error('[autosave] error:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 30_000); // Auto-save every 30 seconds
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+    };
+  }, [fabricCanvas, hasContent, projectId, uploadedImageDataUrl, lastSaveTime, toast]);
 
   // Route panel based on active mode
   const activePanel = (() => {
