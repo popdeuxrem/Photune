@@ -10,6 +10,7 @@ import { EditorShell } from './EditorShell';
 import { fabric } from 'fabric';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { EditorEmptyState } from './EditorEmptyState';
+import { EditorIngestionStatus } from './EditorIngestionStatus';
 import { EditorModeNav, type EditorMode } from './EditorModeNav';
 import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
 import { UploadModePanel } from './Panels/UploadModePanel';
@@ -32,14 +33,24 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const pendingUploadRef = useRef<File | null>(null);
   const [hasContent, setHasContent] = useState(false);
   const [activeMode, setActiveMode] = useState<EditorMode>('upload');
+  const [ingestionState, setIngestionState] = useState<
+    'idle' | 'selecting' | 'uploading' | 'processing' | 'ready' | 'error'
+  >('idle');
+  const [ingestionMessage, setIngestionMessage] = useState('');
+  const [ingestionError, setIngestionError] = useState('');
 
   const handleUploadClick = () => {
+    setIngestionError('');
+    setIngestionMessage('');
+    setIngestionState('selecting');
     fileInputRef.current?.click();
   };
 
   const processUpload = useCallback(async (file: File) => {
     if (!fabricCanvas) {
       console.log('[upload] fabricCanvas not ready, storing pending upload');
+      setIngestionState('uploading');
+      setIngestionMessage('Waiting for editor to initialize...');
       pendingUploadRef.current = file;
       return;
     }
@@ -48,9 +59,18 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     const validation = validateImageUpload(file);
     if (!validation.ok) {
       console.log('[upload] validation failed:', validation.message);
+      setIngestionState('error');
+      setIngestionError(validation.message);
       toast({ title: validation.message || 'Invalid file', variant: 'destructive' });
       return;
     }
+
+    setIngestionError('');
+    setIngestionMessage('Your image has been accepted.');
+    setIngestionState('uploading');
+
+    setIngestionMessage('Loading image into the editor...');
+    setIngestionState('processing');
 
     console.log('[upload] reading file as data URL');
     const reader = new FileReader();
@@ -66,6 +86,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         fabricCanvas.renderAll();
         console.log('[upload] background image set, updating hasContent');
         setHasContent(true);
+        setIngestionMessage('');
+        setIngestionState('ready');
         saveState();
         toast({ title: 'Image uploaded' });
       }, { crossOrigin: 'anonymous' });
@@ -81,6 +103,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     
     if (!file) {
       console.log('[upload] no file selected');
+      setIngestionState('idle');
       return;
     }
 
@@ -245,6 +268,15 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     }
   }, [fabricCanvas, hasContent, processUpload]);
 
+  // Sync ingestion state with hasContent
+  useEffect(() => {
+    if (hasContent) {
+      setIngestionState((current) => (current === 'idle' ? current : 'ready'));
+      setIngestionError('');
+      setIngestionMessage('');
+    }
+  }, [hasContent]);
+
   // Route panel based on active mode
   const activePanel = (() => {
     switch (activeMode) {
@@ -321,7 +353,18 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             onChange={handleFileChange}
           />
           <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-            {hasContent ? (
+            {ingestionState === 'uploading' || ingestionState === 'processing' ? (
+              <EditorIngestionStatus
+                state={ingestionState}
+                message={ingestionMessage}
+              />
+            ) : ingestionState === 'error' ? (
+              <EditorIngestionStatus
+                state="error"
+                errorMessage={ingestionError}
+                onRetry={handleUploadClick}
+              />
+            ) : hasContent ? (
               <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
                 <Canvas />
               </div>
