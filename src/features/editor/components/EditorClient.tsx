@@ -191,7 +191,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     }
   }, [fabricCanvas, initialProjectData, saveState]);
 
-  // Check for initial content on mount
+  // Check for initial content on mount and update when canvas becomes available
   useEffect(() => {
     const hasInitialContent = Boolean(
       initialProjectData?.canvas_data ||
@@ -199,6 +199,16 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     );
     setHasContent(hasInitialContent);
   }, [initialProjectData]);
+
+  // Update hasContent when fabricCanvas becomes available with background
+  useEffect(() => {
+    if (fabricCanvas) {
+      const bg = fabricCanvas.backgroundImage;
+      if (bg && !hasContent) {
+        setHasContent(true);
+      }
+    }
+  }, [fabricCanvas, hasContent]);
 
   // Route panel based on active mode
   const activePanel = (() => {
