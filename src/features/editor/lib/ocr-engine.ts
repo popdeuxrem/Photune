@@ -1,6 +1,7 @@
-import { createWorker } from 'tesseract.js';
-
+// Dynamic import to defer loading Tesseract.js (133KB) until actually needed
+// This eliminates webpack cache serialization warnings during development
 export async function runAdvancedOCR(imageSource: string | File) {
+  const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng', 1);
   
   // Create a hidden processing canvas

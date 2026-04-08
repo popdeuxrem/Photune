@@ -1,10 +1,10 @@
-import { createWorker } from 'tesseract.js';
-
 /**
  * Executes OCR on the provided image source.
  * In Tesseract.js v5, the Bbox properties are x0, y0, x1, y1.
+ * Uses dynamic import to defer loading Tesseract.js until needed.
  */
 export async function runOCR(imageSource: string | File) {
+  const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng');
   
   try {
