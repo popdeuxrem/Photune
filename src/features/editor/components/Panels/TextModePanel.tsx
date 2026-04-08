@@ -19,6 +19,7 @@ type TextModePanelProps = {
   imageDataUrl?: string | null;
   onApplyFontSuggestion?: (input: { family: string; weight: string }) => void;
   onAddText?: () => void;
+  onResampleTextStyle?: () => void;
   selectedTextStyle?: SelectedTextStyle;
   onUpdateTextStyle?: (input: Partial<SelectedTextStyle>) => void;
 };
@@ -29,6 +30,7 @@ export function TextModePanel({
   imageDataUrl = null,
   onApplyFontSuggestion,
   onAddText,
+  onResampleTextStyle,
   selectedTextStyle,
   onUpdateTextStyle,
 }: TextModePanelProps) {
@@ -48,6 +50,7 @@ export function TextModePanel({
   }, [hasContent, imageDataUrl, isLoading]);
 
   const canEditText = Boolean(hasTextSelected && selectedTextStyle && onUpdateTextStyle);
+  const canResampleTextStyle = Boolean(hasTextSelected && onResampleTextStyle);
 
   const handleDetectFont = async () => {
     if (!canDetectFont || !imageDataUrl) return;
@@ -121,6 +124,28 @@ export function TextModePanel({
             className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Add text
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Resample styling
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Re-sample fill color and readable default effects from the text object&apos;s current image region.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onResampleTextStyle}
+            disabled={!canResampleTextStyle}
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Resample
           </button>
         </div>
       </div>

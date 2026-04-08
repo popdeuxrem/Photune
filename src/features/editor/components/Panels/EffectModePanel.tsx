@@ -1,21 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-
-type SelectedTextEffects = {
-  fill: string;
-  stroke: string;
-  strokeWidth: number;
-  opacity: number;
-  shadowColor: string;
-  shadowBlur: number;
-  shadowOffsetX: number;
-  shadowOffsetY: number;
-};
+import {
+  TEXT_EFFECT_PRESETS,
+  type SelectedTextEffects,
+} from '@/features/editor/lib/text-effect-presets';
 
 type EffectModePanelProps = {
   hasContent: boolean;
   hasTextSelected: boolean;
+  onApplyReadableDefaults?: () => void;
   selectedTextEffects?: SelectedTextEffects;
   onUpdateTextEffects?: (input: Partial<SelectedTextEffects>) => void;
 };
@@ -23,6 +17,7 @@ type EffectModePanelProps = {
 export function EffectModePanel({
   hasContent,
   hasTextSelected,
+  onApplyReadableDefaults,
   selectedTextEffects,
   onUpdateTextEffects,
 }: EffectModePanelProps) {
@@ -91,6 +86,47 @@ export function EffectModePanel({
         <p className="mt-1 text-sm text-muted-foreground">
           Apply non-destructive visual styling to the selected text object.
         </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-background p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Readable defaults
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Re-apply the built-in readable shadow/stroke strategy for the current fill color.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onApplyReadableDefaults}
+            disabled={!onApplyReadableDefaults}
+            className="rounded-xl border border-border px-3 py-2 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Apply defaults
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-background p-4">
+        <div className="mb-4 text-sm font-medium text-foreground">
+          Presets
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {TEXT_EFFECT_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              onClick={() => onUpdateTextEffects?.(preset.values)}
+              className="rounded-xl border border-border px-3 py-2 text-sm text-foreground transition hover:bg-muted"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-background p-4">

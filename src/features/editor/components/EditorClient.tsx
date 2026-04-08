@@ -5,14 +5,13 @@ import { useAppStore } from '@/shared/store/useAppStore';
 import { Sidebar } from './Toolbar/Sidebar';
 import { Header } from './Header';
 import { Canvas } from './Canvas';
-import { JobStatusPanel } from './JobStatusPanel';
 import { EditorShell } from './EditorShell';
 import { fabric } from 'fabric';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { EditorEmptyState } from './EditorEmptyState';
 import { EditorIngestionStatus } from './EditorIngestionStatus';
 import { EditorModeNav, type EditorMode } from './EditorModeNav';
-import { validateImageUpload, MAX_UPLOAD_BYTES } from '@/shared/lib/security/upload-validation';
+import { validateImageUpload } from '@/shared/lib/security/upload-validation';
 import { UploadModePanel } from './Panels/UploadModePanel';
 import { ExportModePanel } from './Panels/ExportModePanel';
 import { TextModePanel } from './Panels/TextModePanel';
@@ -21,16 +20,98 @@ import { RewriteModePanel } from './Panels/RewriteModePanel';
 import { BackgroundModePanel } from './Panels/BackgroundModePanel';
 import { LayersModePanel } from './Panels/LayersModePanel';
 import { EffectModePanel } from './Panels/EffectModePanel';
-import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
+import {
+  applyLayerLockState,
+  inferLayerRoleForObject,
+  tagLayerObject,
+} from '@/features/editor/lib/layer-system';
 import { createTextObject } from '@/features/editor/lib/create-text-object';
+import { tryNormalizeCanvasPayload } from '@/features/editor/lib/canvas-serialization';
+
+type EditorProjectData = {
+  name?: string | null;
+  canvas_data?: unknown;
+  original_image_url?: string | null;
+} | null;
 
 interface EditorClientProps {
   projectId: string;
-  initialProjectData: any;
+  initialProjectData: EditorProjectData;
+}
+
+function hydrateLayerMetadata(canvas: fabric.Canvas) {
+  const objects = canvas.getObjects();
+
+  objects.forEach((obj, index) => {
+    const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
+    if (tagged.photuneRole === 'background') {
+      applyLayerLockState(tagged, true);
+    }
+  });
+}
+
+function loadBackgroundImage(canvas: fabric.Canvas, imageUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    fabric.Image.fromURL(
+      imageUrl,
+      (img) => {
+        try {
+          img.set({ crossOrigin: 'anonymous' });
+          tagLayerObject(img, 'background', 0, canvas.getObjects());
+          applyLayerLockState(img, true);
+          canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+            scaleX: canvas.width ? canvas.width / (img.width || 1) : 1,
+            scaleY: canvas.height ? canvas.height / (img.height || 1) : 1,
+          });
+          canvas.renderAll();
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      },
+      { crossOrigin: 'anonymous' }
+    );
+  });
+}
+
+function loadCanvasJson(canvas: fabric.Canvas, canvasData: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const parsed = tryNormalizeCanvasPayload(canvasData);
+
+    if (!parsed.ok) {
+      reject(new Error(parsed.error));
+      return;
+    }
+
+    (canvas as fabric.Canvas & { isImporting?: boolean }).isImporting = true;
+    canvas.loadFromJSON(parsed.data, () => {
+      try {
+        hydrateLayerMetadata(canvas);
+        canvas.renderAll();
+        (canvas as fabric.Canvas & { isImporting?: boolean }).isImporting = false;
+        resolve();
+      } catch (error) {
+        (canvas as fabric.Canvas & { isImporting?: boolean }).isImporting = false;
+        reject(error);
+      }
+    });
+  });
 }
 
 export function EditorClient({ projectId, initialProjectData }: EditorClientProps) {
-  const { fabricCanvas, activeObject, saveState, undo, redo, canUndo, canRedo, uploadedImageUrl, setUploadedImageUrl } = useAppStore();
+  const {
+    fabricCanvas,
+    activeObject,
+    saveState,
+    replaceHistoryWithCurrentState,
+    resetEditorSession,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    uploadedImageUrl,
+    setUploadedImageUrl,
+  } = useAppStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasContent, setHasContent] = useState(false);
@@ -42,10 +123,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const [ingestionError, setIngestionError] = useState('');
   const [pendingUploadUrl, setPendingUploadUrl] = useState<string | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
-  const [uploadedImageDataUrl, setUploadedImageDataUrl] = useState<string | null>(null);
 
   const handleCanvasReady = useCallback(() => {
-    console.log('[canvas] ready signal received');
     setIsCanvasReady(true);
   }, []);
 
@@ -56,36 +135,33 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     fileInputRef.current?.click();
   };
 
-  const processUpload = useCallback(async (file: File) => {
-    const validation = validateImageUpload(file);
-    if (!validation.ok) {
-      console.log('[upload] validation failed:', validation.message);
-      setIngestionState('error');
-      setIngestionError(validation.message);
-      toast({ title: validation.message || 'Invalid file', variant: 'destructive' });
-      return;
-    }
+  const processUpload = useCallback(
+    async (file: File) => {
+      const validation = validateImageUpload(file);
+      if (!validation.ok) {
+        setIngestionState('error');
+        setIngestionError(validation.message);
+        toast({ title: validation.message || 'Invalid file', variant: 'destructive' });
+        return;
+      }
 
-    setIngestionError('');
-    setIngestionMessage('Your image has been accepted.');
-    setIngestionState('uploading');
+      setIngestionError('');
+      setIngestionMessage('Preparing editor...');
+      setIngestionState('processing');
 
-    setIngestionMessage('Preparing editor...');
-    setIngestionState('processing');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setUploadedImageUrl(dataUrl);
+      };
+      reader.readAsDataURL(file);
 
-    // Read file as data URL for persistence
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setUploadedImageDataUrl(dataUrl);
-      setUploadedImageUrl(dataUrl);
-    };
-    reader.readAsDataURL(file);
-
-    const objectUrl = URL.createObjectURL(file);
-    setPendingUploadUrl(objectUrl);
-    setIngestionMessage('Waiting for editor to initialize...');
-  }, [setUploadedImageUrl, toast]);
+      const objectUrl = URL.createObjectURL(file);
+      setPendingUploadUrl(objectUrl);
+      setIngestionMessage('Waiting for editor to initialize...');
+    },
+    [setUploadedImageUrl, toast]
+  );
 
   const handleUpdateTextStyle = useCallback(
     (input: {
@@ -104,10 +180,18 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       if (!isTextObject) return;
 
       activeObject.set({
-        fontSize: typeof input.fontSize === 'number' ? input.fontSize : (activeObject as any).fontSize,
-        textAlign: typeof input.textAlign === 'string' ? input.textAlign : (activeObject as any).textAlign,
-        charSpacing: typeof input.charSpacing === 'number' ? input.charSpacing : (activeObject as any).charSpacing,
-        lineHeight: typeof input.lineHeight === 'number' ? input.lineHeight : (activeObject as any).lineHeight,
+        fontSize:
+          typeof input.fontSize === 'number' ? input.fontSize : (activeObject as any).fontSize,
+        textAlign:
+          typeof input.textAlign === 'string' ? input.textAlign : (activeObject as any).textAlign,
+        charSpacing:
+          typeof input.charSpacing === 'number'
+            ? input.charSpacing
+            : (activeObject as any).charSpacing,
+        lineHeight:
+          typeof input.lineHeight === 'number'
+            ? input.lineHeight
+            : (activeObject as any).lineHeight,
       } as Record<string, unknown>);
 
       fabricCanvas.renderAll();
@@ -157,7 +241,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       const nextShadowColor =
         typeof input.shadowColor === 'string'
           ? input.shadowColor
-          : ((textObject.shadow as fabric.Shadow | undefined)?.color as string | undefined) || '#000000';
+          : ((textObject.shadow as fabric.Shadow | undefined)?.color as string | undefined) ||
+            '#000000';
 
       const nextShadowBlur =
         typeof input.shadowBlur === 'number'
@@ -225,238 +310,221 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     [activeObject, fabricCanvas, saveState]
   );
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('[upload] handleFileChange:start');
-    
-    const file = e.target.files?.[0];
-    console.log('[upload] selected file:', { exists: Boolean(file), type: file?.type, size: file?.size });
-    
-    if (!file) {
-      console.log('[upload] no file selected');
-      setIngestionState('idle');
-      return;
-    }
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
 
-    await processUpload(file);
-    e.target.value = '';
-    console.log('[upload] handleFileChange:end');
-  }, [processUpload]);
-
-  // Keyboard shortcuts
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!fabricCanvas) return;
-
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
-
-    // Delete selected objects
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.metaKey) {
-      const activeObjects = fabricCanvas.getActiveObjects();
-      if (activeObjects.length > 0) {
-        activeObjects.forEach((obj) => fabricCanvas.remove(obj));
-        fabricCanvas.discardActiveObject();
-        fabricCanvas.renderAll();
-        saveState();
-        e.preventDefault();
+      if (!file) {
+        setIngestionState('idle');
+        return;
       }
-      return;
-    }
 
-    // Ctrl/Cmd + Z = Undo
-    if (ctrlKey && e.key === 'z' && !e.shiftKey) {
-      if (canUndo()) {
-        undo();
-        e.preventDefault();
-      }
-      return;
-    }
+      await processUpload(file);
+      e.target.value = '';
+    },
+    [processUpload]
+  );
 
-    // Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z = Redo
-    if ((ctrlKey && e.key === 'y') || (ctrlKey && e.shiftKey && e.key === 'z')) {
-      if (canRedo()) {
-        redo();
-        e.preventDefault();
-      }
-      return;
-    }
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!fabricCanvas) return;
 
-    // Ctrl/Cmd + S = Save
-    if (ctrlKey && e.key === 's') {
-      e.preventDefault();
-      // Trigger save via custom event
-      window.dispatchEvent(new CustomEvent('photune-save'));
-      return;
-    }
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
-    // Ctrl/Cmd + D = Duplicate
-    if (ctrlKey && e.key === 'd') {
-      const activeObject = fabricCanvas.getActiveObject();
-      if (activeObject) {
-        activeObject.clone((cloned: fabric.Object) => {
-          cloned.set({
-            left: (cloned.left || 0) + 20,
-            top: (cloned.top || 0) + 20,
-          });
-          fabricCanvas.add(cloned);
-          fabricCanvas.setActiveObject(cloned);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.metaKey) {
+        const activeObjects = fabricCanvas.getActiveObjects();
+        if (activeObjects.length > 0) {
+          activeObjects.forEach((obj) => fabricCanvas.remove(obj));
+          fabricCanvas.discardActiveObject();
           fabricCanvas.renderAll();
           saveState();
-        });
-        e.preventDefault();
+          e.preventDefault();
+        }
+        return;
       }
-      return;
-    }
 
-    // Ctrl/Cmd + A = Select all
-    if (ctrlKey && e.key === 'a') {
-      fabricCanvas.discardActiveObject();
-      const objects = fabricCanvas.getObjects();
-      if (objects.length > 0) {
-        const selection = new fabric.ActiveSelection(objects, { canvas: fabricCanvas });
-        fabricCanvas.setActiveObject(selection);
+      if (ctrlKey && e.key === 'z' && !e.shiftKey) {
+        if (canUndo()) {
+          undo();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if ((ctrlKey && e.key === 'y') || (ctrlKey && e.shiftKey && e.key === 'z')) {
+        if (canRedo()) {
+          redo();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (ctrlKey && e.key === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('photune-save'));
+        return;
+      }
+
+      if (ctrlKey && e.key === 'd') {
+        const selectedObject = fabricCanvas.getActiveObject();
+        if (selectedObject) {
+          selectedObject.clone((cloned: fabric.Object) => {
+            cloned.set({
+              left: (cloned.left || 0) + 20,
+              top: (cloned.top || 0) + 20,
+            });
+            fabricCanvas.add(cloned);
+            fabricCanvas.setActiveObject(cloned);
+            fabricCanvas.renderAll();
+            saveState();
+          });
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (ctrlKey && e.key === 'a') {
+        fabricCanvas.discardActiveObject();
+        const objects = fabricCanvas.getObjects();
+        if (objects.length > 0) {
+          const selection = new fabric.ActiveSelection(objects, { canvas: fabricCanvas });
+          fabricCanvas.setActiveObject(selection);
+          fabricCanvas.renderAll();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        fabricCanvas.discardActiveObject();
         fabricCanvas.renderAll();
       }
-      e.preventDefault();
-      return;
-    }
-
-    // Escape = Deselect
-    if (e.key === 'Escape') {
-      fabricCanvas.discardActiveObject();
-      fabricCanvas.renderAll();
-      return;
-    }
-
-  }, [fabricCanvas, saveState, undo, redo, canUndo, canRedo]);
+    },
+    [fabricCanvas, saveState, undo, redo, canUndo, canRedo]
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Single deterministic restore path on reload
+  useEffect(() => {
+    resetEditorSession();
+  }, [projectId, resetEditorSession]);
+
   useEffect(() => {
     if (!fabricCanvas) return;
 
     let cancelled = false;
 
     const restore = async () => {
-      console.log('[reload] checking restore options:', {
-        hasCanvasData: Boolean(initialProjectData?.canvas_data),
-        hasOriginalImageUrl: Boolean(initialProjectData?.original_image_url),
-      });
+      const originalImageUrl = initialProjectData?.original_image_url || null;
+      const serializedCanvas = initialProjectData?.canvas_data;
 
-      // Priority 1: durable uploaded image restore
-      if (initialProjectData?.original_image_url) {
-        console.log('[reload] restoring from original_image_url');
-        fabric.Image.fromURL(
-          initialProjectData.original_image_url,
-          (img) => {
-            if (cancelled) return;
+      try {
+        if (serializedCanvas) {
+          await loadCanvasJson(fabricCanvas, serializedCanvas);
 
-            img.set({ crossOrigin: 'anonymous' });
-            tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
-            applyLayerLockState(img, true);
-            fabricCanvas.setBackgroundImage(
-              img,
-              fabricCanvas.renderAll.bind(fabricCanvas),
-              {
-                scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
-                scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
-              }
-            );
-
-            fabricCanvas.renderAll();
-            setHasContent(true);
-            console.log('[reload] original_image_url restored successfully');
-          },
-          { crossOrigin: 'anonymous' }
-        );
-        return;
-      }
-
-      // Priority 2: fallback restore from canvas_data
-      if (initialProjectData?.canvas_data) {
-        console.log('[reload] restoring from canvas_data');
-        (fabricCanvas as any).isImporting = true;
-
-        fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
           if (cancelled) return;
 
-          fabricCanvas.getObjects().forEach((obj, index) => {
-            const objects = fabricCanvas.getObjects();
-            const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
-            if (tagged.photuneRole === 'background') {
-              applyLayerLockState(tagged, true);
-            }
-          });
+          if (originalImageUrl) {
+            setUploadedImageUrl(originalImageUrl);
+          }
 
-          fabricCanvas.renderAll();
-          (fabricCanvas as any).isImporting = false;
+          setHasContent(fabricCanvas.getObjects().length > 0 || Boolean(fabricCanvas.backgroundImage));
+          replaceHistoryWithCurrentState();
+          return;
+        }
+
+        if (originalImageUrl) {
+          await loadBackgroundImage(fabricCanvas, originalImageUrl);
+
+          if (cancelled) return;
+
+          setUploadedImageUrl(originalImageUrl);
           setHasContent(true);
-          console.log('[reload] canvas_data restored successfully');
-          saveState();
-        });
+          replaceHistoryWithCurrentState();
+        }
+      } catch (error) {
+        console.error('[editor-restore] failed:', error);
+
+        if (!cancelled && originalImageUrl) {
+          try {
+            fabricCanvas.clear();
+            await loadBackgroundImage(fabricCanvas, originalImageUrl);
+            setUploadedImageUrl(originalImageUrl);
+            setHasContent(true);
+            replaceHistoryWithCurrentState();
+            toast({
+              title: 'Project restored with fallback image only',
+              description: 'Saved canvas data was invalid, so Photune recovered the original image.',
+              variant: 'destructive',
+            });
+            return;
+          } catch (fallbackError) {
+            console.error('[editor-restore:fallback] failed:', fallbackError);
+          }
+        }
+
+        if (!cancelled) {
+          fabricCanvas.clear();
+          setHasContent(false);
+          replaceHistoryWithCurrentState();
+          toast({
+            title: 'Project restore failed',
+            description: 'The saved canvas data was invalid or incomplete.',
+            variant: 'destructive',
+          });
+        }
       }
     };
 
-    restore();
+    void restore();
 
     return () => {
       cancelled = true;
     };
-  }, [fabricCanvas, initialProjectData, saveState]);
+  }, [
+    fabricCanvas,
+    initialProjectData,
+    replaceHistoryWithCurrentState,
+    setUploadedImageUrl,
+    toast,
+  ]);
 
-  // Update hasContent when fabricCanvas becomes available with background
   useEffect(() => {
-    console.log('[hasContent] useEffect fired, fabricCanvas:', Boolean(fabricCanvas), 'current hasContent:', hasContent);
     if (fabricCanvas) {
       const bg = fabricCanvas.backgroundImage;
-      console.log('[hasContent] backgroundImage:', Boolean(bg));
       if (bg && !hasContent) {
-        console.log('[hasContent] setting hasContent to true from backgroundImage');
         setHasContent(true);
       }
     }
   }, [fabricCanvas, hasContent]);
 
-  // Consume pending upload when canvas becomes ready
   useEffect(() => {
-    console.log('[upload] checking pending consumption:', { isCanvasReady, pendingUploadUrl: Boolean(pendingUploadUrl), fabricCanvas: Boolean(fabricCanvas) });
     if (!isCanvasReady || !pendingUploadUrl || !fabricCanvas) return;
 
-    console.log('[upload] applying pending image to canvas');
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      fabric.Image.fromURL(pendingUploadUrl, (fabricImg) => {
-        fabricImg.set({ crossOrigin: 'anonymous' });
-        tagLayerObject(fabricImg, 'background', 0, fabricCanvas.getObjects());
-        applyLayerLockState(fabricImg, true);
-        fabricCanvas.setBackgroundImage(fabricImg, fabricCanvas.renderAll.bind(fabricCanvas), {
-          scaleX: fabricCanvas.width ? fabricCanvas.width / (fabricImg.width || 1) : 1,
-          scaleY: fabricCanvas.height ? fabricCanvas.height / (fabricImg.height || 1) : 1,
-        });
-        fabricCanvas.renderAll();
-        console.log('[upload] background image applied, setting hasContent');
+    const applyPendingImage = async () => {
+      try {
+        await loadBackgroundImage(fabricCanvas, pendingUploadUrl);
         setHasContent(true);
         setPendingUploadUrl(null);
         setIngestionState('ready');
         setIngestionMessage('');
-        saveState();
+        replaceHistoryWithCurrentState();
         URL.revokeObjectURL(pendingUploadUrl);
-      }, { crossOrigin: 'anonymous' });
+      } catch (error) {
+        console.error('[upload] failed to load pending image', error);
+        setPendingUploadUrl(null);
+        setIngestionState('error');
+        setIngestionError('Failed to load the image. Please try again.');
+      }
     };
-    img.onerror = () => {
-      console.error('[upload] failed to load pending image');
-      setPendingUploadUrl(null);
-      setIngestionState('error');
-      setIngestionError('Failed to load the image. Please try again.');
-    };
-    img.src = pendingUploadUrl;
-  }, [isCanvasReady, pendingUploadUrl, fabricCanvas, saveState, toast]);
 
-  // Sync ingestion state with hasContent
+    void applyPendingImage();
+  }, [isCanvasReady, pendingUploadUrl, fabricCanvas, replaceHistoryWithCurrentState]);
+
   useEffect(() => {
     if (hasContent) {
       setIngestionState((current) => (current === 'idle' ? current : 'ready'));
@@ -465,22 +533,12 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     }
   }, [hasContent]);
 
-  // Route panel based on active mode
   const activePanel = (() => {
     switch (activeMode) {
       case 'upload':
-        return (
-          <UploadModePanel
-            hasContent={hasContent}
-            onUploadClick={handleUploadClick}
-          />
-        );
+        return <UploadModePanel hasContent={hasContent} onUploadClick={handleUploadClick} />;
       case 'export':
-        return (
-          <ExportModePanel
-            hasContent={hasContent}
-          />
-        );
+        return <ExportModePanel hasContent={hasContent} />;
       case 'text':
         return (
           <TextModePanel
@@ -503,11 +561,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           />
         );
       case 'erase':
-        return (
-          <EraseModePanel
-            hasContent={hasContent}
-          />
-        );
+        return <EraseModePanel hasContent={hasContent} />;
       case 'effect':
         return (
           <EffectModePanel
@@ -531,25 +585,11 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           />
         );
       case 'rewrite':
-        return (
-          <RewriteModePanel
-            hasContent={hasContent}
-            canRewrite={false}
-          />
-        );
+        return <RewriteModePanel hasContent={hasContent} canRewrite={false} />;
       case 'background':
-        return (
-          <BackgroundModePanel
-            hasContent={hasContent}
-          />
-        );
+        return <BackgroundModePanel hasContent={hasContent} />;
       case 'layers':
-        return (
-          <LayersModePanel
-            hasContent={hasContent}
-            hasObjectSelection={false}
-          />
-        );
+        return <LayersModePanel hasContent={hasContent} hasObjectSelection={false} />;
       default:
         return <Sidebar />;
     }
@@ -557,12 +597,7 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
 
   return (
     <EditorShell
-      header={
-        <Header 
-          projectId={projectId} 
-          projectName={initialProjectData?.name || 'Untitled Project'} 
-        />
-      }
+      header={<Header projectId={projectId} projectName={initialProjectData?.name || 'Untitled Project'} />}
       sidebar={<Sidebar />}
       panel={activePanel}
       mobilePanel={activePanel}
@@ -577,29 +612,22 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             onChange={handleFileChange}
           />
           <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-            {/* Always render canvas - overlay shows when loading */}
             <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
               <Canvas onReady={handleCanvasReady} />
             </div>
-            
-            {/* Overlay for empty state */}
+
             {!hasContent && ingestionState === 'idle' && (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
                 <EditorEmptyState onUploadClick={handleUploadClick} />
               </div>
             )}
-            
-            {/* Overlay for loading states */}
+
             {(ingestionState === 'uploading' || ingestionState === 'processing') && (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-50/90 dark:bg-zinc-900/90">
-                <EditorIngestionStatus
-                  state={ingestionState}
-                  message={ingestionMessage}
-                />
+                <EditorIngestionStatus state={ingestionState} message={ingestionMessage} />
               </div>
             )}
-            
-            {/* Overlay for error state */}
+
             {ingestionState === 'error' && (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
                 <EditorIngestionStatus

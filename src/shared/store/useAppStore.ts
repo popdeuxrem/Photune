@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { fabric } from 'fabric';
+import { serializeCanvasSnapshot } from '@/features/editor/lib/canvas-serialization';
 
 type Job = { id: number; text: string; status: 'processing' | 'completed' | 'failed' };
 
@@ -16,6 +17,8 @@ interface AppState {
   updateJob: (id: number, status: Job['status'], text?: string) => void;
   removeJob: (id: number) => void;
   saveState: () => void;
+  replaceHistoryWithCurrentState: () => void;
+  resetEditorSession: () => void;
   setUploadedImageUrl: (url: string | null) => void;
   undo: () => void;
   redo: () => void;
@@ -34,32 +37,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setActiveObject: (obj) => set({ activeObject: obj }),
   setUploadedImageUrl: (url) => set({ uploadedImageUrl: url }),
-  
+  resetEditorSession: () =>
+    set({ activeObject: null, history: [], historyIndex: -1, uploadedImageUrl: null }),
+
   addJob: (job) => set((state) => ({ jobs: [...state.jobs, job] })),
-  updateJob: (id, status, text) => set((state) => ({
-    jobs: state.jobs.map(j => j.id === id ? { ...j, status, text: text || j.text } : j)
-  })),
-  removeJob: (id) => set((state) => ({ jobs: state.jobs.filter(j => j.id !== id) })),
+  updateJob: (id, status, text) =>
+    set((state) => ({
+      jobs: state.jobs.map((j) => (j.id === id ? { ...j, status, text: text || j.text } : j)),
+    })),
+  removeJob: (id) => set((state) => ({ jobs: state.jobs.filter((j) => j.id !== id) })),
 
   saveState: () => {
     const canvas = get().fabricCanvas;
     if (!canvas) return;
-    const json = JSON.stringify(canvas.toJSON(['isImporting', 'selectable', 'hasControls']));
+
+    const json = serializeCanvasSnapshot(canvas);
     const { history, historyIndex } = get();
-    
-    // Don't save if state hasn't changed
+
     if (history[historyIndex] === json) return;
 
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(json);
-    
-    // Limit history to 50 steps to save memory
+
     if (newHistory.length > 50) newHistory.shift();
 
-    set({ 
-      history: newHistory, 
-      historyIndex: newHistory.length - 1 
+    set({
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
     });
+  },
+
+  replaceHistoryWithCurrentState: () => {
+    const canvas = get().fabricCanvas;
+    if (!canvas) return;
+
+    const json = serializeCanvasSnapshot(canvas);
+    set({ history: [json], historyIndex: 0 });
   },
 
   undo: () => {

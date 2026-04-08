@@ -1,23 +1,29 @@
 'use server';
 
-import { createClient } from '@/shared/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-/**
- * Fetches all projects belonging to the currently authenticated user.
- * Ordered by most recently updated.
- */
-export async function getUserProjects() {
-  const supabase = createClient();
-  
-  // 1. Verify Authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    console.error("Auth error in getUserProjects:", authError);
-    return [];
-  }
+import { requireAuthenticatedUser } from '@/shared/lib/auth/require-authenticated-user';
+import { isPersistedProjectId } from '@/shared/lib/persistence/project-guards';
+import { getErrorSummary, logError, logInfo } from '@/shared/lib/logging/logger';
 
-  // 2. Fetch User-Specific Projects
+type DashboardProjectRow = {
+  id: string;
+  name: string;
+  original_image_url: string | null;
+  updated_at: string;
+};
+
+export async function getUserProjects(): Promise<DashboardProjectRow[]> {
+  const { supabase, user } = await requireAuthenticatedUser();
+
+  logInfo({
+    event: 'project_list_start',
+    surface: 'persistence',
+    route: '/dashboard',
+    operation: 'project_list',
+    userId: user.id,
+  });
+
   const { data, error } = await supabase
     .from('projects')
     .select('id, name, original_image_url, updated_at')
@@ -25,39 +31,80 @@ export async function getUserProjects() {
     .order('updated_at', { ascending: false });
 
   if (error) {
-    console.error("Database error in getUserProjects:", error.message);
-    return [];
+    logError({
+      event: 'project_list_failure',
+      surface: 'persistence',
+      route: '/dashboard',
+      operation: 'project_list',
+      userId: user.id,
+      ...getErrorSummary(error),
+    });
+    throw new Error('Failed to load projects.');
   }
 
-  return data || [];
+  logInfo({
+    event: 'project_list_success',
+    surface: 'persistence',
+    route: '/dashboard',
+    operation: 'project_list',
+    userId: user.id,
+    message: `Loaded ${Array.isArray(data) ? data.length : 0} projects`,
+  });
+
+  return Array.isArray(data) ? data : [];
 }
 
-/**
- * Deletes a specific project.
- * Security: Supabase RLS ensures users can only delete their own rows,
- * but we verify the user ID here for an extra layer of protection.
- */
 export async function deleteProject(id: string) {
-  const supabase = createClient();
-  
-  // 1. Verify Authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized: Please sign in to delete projects.");
+  if (!isPersistedProjectId(id)) {
+    throw new Error('Invalid project id.');
+  }
 
-  // 2. Perform Deletion (RLS handles the ownership check)
-  const { error } = await supabase
+  const { supabase, user } = await requireAuthenticatedUser();
+
+  logInfo({
+    event: 'project_delete_start',
+    surface: 'persistence',
+    route: '/dashboard',
+    operation: 'project_delete',
+    projectId: id,
+    userId: user.id,
+  });
+
+  const { data, error } = await supabase
     .from('projects')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id); // Double-verify ownership
+    .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle();
 
   if (error) {
-    console.error("Delete error:", error.message);
-    throw new Error("Failed to delete project.");
+    logError({
+      event: 'project_delete_failure',
+      surface: 'persistence',
+      route: '/dashboard',
+      operation: 'project_delete',
+      projectId: id,
+      userId: user.id,
+      ...getErrorSummary(error),
+    });
+    throw new Error('Failed to delete project.');
   }
 
-  // 3. Purge Next.js Cache for the Dashboard
+  if (!data) {
+    throw new Error('Project not found.');
+  }
+
+  logInfo({
+    event: 'project_delete_success',
+    surface: 'persistence',
+    route: '/dashboard',
+    operation: 'project_delete',
+    projectId: id,
+    userId: user.id,
+  });
+
   revalidatePath('/dashboard');
-  
-  return { success: true };
+
+  return { success: true, id };
 }

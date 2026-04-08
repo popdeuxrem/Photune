@@ -1,6 +1,7 @@
 import { fabric } from 'fabric';
 import { inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
 import { getDefaultTextFill, sampleImageColorAtPoint } from '@/features/editor/lib/color-sampling';
+import { getTextEffectDefaults } from '@/features/editor/lib/text-effect-defaults';
 
 type CreateTextObjectInput = {
   canvas: fabric.Canvas;
@@ -41,6 +42,9 @@ export function createTextObject({
     radius: 18,
   });
 
+  const resolvedFill = sampledFill || getDefaultTextFill();
+  const defaults = getTextEffectDefaults(resolvedFill);
+
   const textObject = new fabric.IText(text, {
     left: centerX,
     top: centerY,
@@ -51,7 +55,10 @@ export function createTextObject({
     fontSize: 48,
     lineHeight: 1.16,
     charSpacing: 0,
-    fill: sampledFill || getDefaultTextFill(),
+    fill: resolvedFill,
+    stroke: defaults.stroke,
+    strokeWidth: defaults.strokeWidth,
+    shadow: defaults.shadow as fabric.Shadow | undefined,
     editable: true,
   });
 

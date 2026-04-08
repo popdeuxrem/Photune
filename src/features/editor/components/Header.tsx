@@ -7,40 +7,58 @@ import { Home, Save, Undo2, Redo2, Loader2 } from 'lucide-react';
 import { saveProject } from '../lib/actions';
 import { ExportModal } from './ExportModal';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ThemeToggle } from '@/shared/components/theme-toggle';
-import { Download } from 'lucide-react';
+import { serializeCanvasPayload } from '@/features/editor/lib/canvas-serialization';
 
 export function Header({ projectId, projectName }: { projectId: string; projectName: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const { fabricCanvas, undo, redo, canUndo, canRedo, uploadedImageUrl } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState(projectId);
 
-  const handleSave = async () => {
-    if (!fabricCanvas) return;
+  useEffect(() => {
+    setCurrentProjectId(projectId);
+  }, [projectId]);
+
+  const handleSave = useCallback(async () => {
+    if (!fabricCanvas || isSaving) return;
+
     setIsSaving(true);
     try {
-      const data = fabricCanvas.toJSON(['isImporting', 'selectable', 'hasControls']);
-      // Generate a small thumbnail for the dashboard
-      const thumbnail = fabricCanvas.toDataURL({ 
-        format: 'jpeg', 
+      const data = serializeCanvasPayload(fabricCanvas);
+      const thumbnail = fabricCanvas.toDataURL({
+        format: 'jpeg',
         quality: 0.4,
-        multiplier: 0.2
+        multiplier: 0.2,
       });
-      
-      // Use uploadedImageUrl if available, otherwise use thumbnail as fallback
+
       const imageUrl = uploadedImageUrl || thumbnail;
-      
-      await saveProject(projectId, projectName, data, imageUrl);
-      toast({ title: "Project Saved Successfully" });
+      const savedProject = await saveProject(currentProjectId, projectName, data, imageUrl);
+
+      if (currentProjectId === 'new' && savedProject?.id) {
+        setCurrentProjectId(savedProject.id);
+        router.replace(`/editor/${savedProject.id}`);
+      }
+
+      toast({ title: 'Project Saved Successfully' });
     } catch (err) {
       console.error(err);
-      toast({ title: "Save Failed", variant: "destructive" });
+      toast({ title: 'Save Failed', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentProjectId, fabricCanvas, isSaving, projectName, router, toast, uploadedImageUrl]);
+
+  useEffect(() => {
+    const listener = () => {
+      void handleSave();
+    };
+
+    window.addEventListener('photune-save', listener as EventListener);
+    return () => window.removeEventListener('photune-save', listener as EventListener);
+  }, [handleSave]);
 
   return (
     <header className="h-12 md:h-14 border-b bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-2 md:px-4 shrink-0 shadow-sm dark:shadow-none z-20">
@@ -49,22 +67,22 @@ export function Header({ projectId, projectName }: { projectId: string; projectN
           <Home size={18} />
         </Button>
         <div className="hidden md:block w-[1px] h-6 bg-zinc-200 dark:bg-zinc-700" />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={undo} 
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={undo}
           disabled={!canUndo()}
-          className={!canUndo() ? "opacity-30" : "dark:hover:bg-zinc-800"}
+          className={!canUndo() ? 'opacity-30' : 'dark:hover:bg-zinc-800'}
           title="Undo"
         >
           <Undo2 size={18} />
         </Button>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={redo} 
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={redo}
           disabled={!canRedo()}
-          className={!canRedo() ? "opacity-30" : "dark:hover:bg-zinc-800"}
+          className={!canRedo() ? 'opacity-30' : 'dark:hover:bg-zinc-800'}
           title="Redo"
         >
           <Redo2 size={18} />
@@ -79,7 +97,7 @@ export function Header({ projectId, projectName }: { projectId: string; projectN
 
       <div className="flex items-center gap-1 md:gap-2">
         <ExportModal />
-        <Button size="sm" onClick={handleSave} disabled={isSaving} className="min-w-[70px] md:min-w-[80px]">
+        <Button size="sm" onClick={() => void handleSave()} disabled={isSaving} className="min-w-[70px] md:min-w-[80px]">
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         </Button>
         <div className="hidden md:flex items-center">

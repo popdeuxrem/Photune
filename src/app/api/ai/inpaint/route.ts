@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErrorSummary, logError, logInfo, logWarn } from '@/shared/lib/logging/logger';
+
+import { makeAIError } from '@/shared/lib/ai/ai-contract';
 import { requireCloudflareEnv } from '@/shared/lib/env/providers';
+import { getErrorSummary, logError, logInfo, logWarn } from '@/shared/lib/logging/logger';
 import { applyRateLimit, makeRateLimitKey } from '@/shared/lib/security/rate-limit';
 import { rateLimitResponse } from '@/shared/lib/security/rate-limit-response';
 
-export async function POST(req: NextRequest) {
-  requireCloudflareEnv();
+function assertInpaintDataUrl(value: unknown, field: 'image' | 'mask'): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Field "${field}" is required.`);
+  }
 
+  const normalized = value.trim();
+
+  if (!normalized.startsWith('data:image/')) {
+    throw new Error(`Field "${field}" must be a data URL.`);
+  }
+
+  return normalized;
+}
+
+export async function POST(req: NextRequest) {
   const rateLimit = applyRateLimit({
     key: makeRateLimitKey('/api/ai/inpaint', req),
     windowMs: 60_000,
@@ -30,25 +44,30 @@ export async function POST(req: NextRequest) {
     surface: 'ai',
     route: '/api/ai/inpaint',
     provider: 'cloudflare',
-    operation: 'cloudflare_request',
+    operation: 'cloudflare_inpaint',
   });
 
-  const { image, mask } = await req.json();
-
-  const accId = process.env.CLOUDFLARE_ACCOUNT_ID!;
-  const token = process.env.CLOUDFLARE_API_TOKEN!;
-
   try {
-    // Convert base64 inputs to Blobs
+    requireCloudflareEnv();
+
+    const body = await req.json();
+    const image = assertInpaintDataUrl(body?.image, 'image');
+    const mask = assertInpaintDataUrl(body?.mask, 'mask');
+
+    const accId = process.env.CLOUDFLARE_ACCOUNT_ID as string;
+    const token = process.env.CLOUDFLARE_API_TOKEN as string;
+
     const imageBlob = await (await fetch(image)).blob();
     const maskBlob = await (await fetch(mask)).blob();
 
     const formData = new FormData();
     formData.append('image', imageBlob);
     formData.append('mask', maskBlob);
-    formData.append('prompt', "seamless background, high detail, remove text, matching texture, fill-in naturally");
+    formData.append(
+      'prompt',
+      'seamless background, high detail, remove text, matching texture, fill-in naturally'
+    );
 
-    // We use the stable-diffusion-v1-5-inpainting model provided in CF Workers AI free/pro tiers
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${accId}/ai/run/@cf/runwayml/stable-diffusion-v1-5-inpainting`,
       {
@@ -58,28 +77,59 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    if (!response.ok) throw new Error("Cloudflare AI error");
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      logError({
+        event: 'cloudflare_request_failure',
+        surface: 'ai',
+        route: '/api/ai/inpaint',
+        provider: 'cloudflare',
+        operation: 'cloudflare_inpaint',
+        statusCode: response.status,
+        message: errorText,
+      });
+
+      return NextResponse.json(
+        makeAIError('cloudflare', 'provider_error', 'Inpainting failed upstream.'),
+        { status: response.status }
+      );
+    }
 
     logInfo({
       event: 'cloudflare_request_success',
       surface: 'ai',
       route: '/api/ai/inpaint',
       provider: 'cloudflare',
-      operation: 'cloudflare_request',
+      operation: 'cloudflare_inpaint',
     });
 
     const buffer = await response.arrayBuffer();
-    return new Response(buffer, { headers: { 'Content-Type': 'image/png' } });
+    return new Response(buffer, {
+      headers: { 'Content-Type': 'image/png' },
+    });
   } catch (error) {
-    console.error(error);
+    const message =
+      error instanceof Error ? error.message : 'Inpainting failed unexpectedly.';
+
     logError({
       event: 'cloudflare_request_failure',
       surface: 'ai',
       route: '/api/ai/inpaint',
       provider: 'cloudflare',
-      operation: 'cloudflare_request',
+      operation: 'cloudflare_inpaint',
       ...getErrorSummary(error),
     });
-    return NextResponse.json({ error: "Inpainting failed" }, { status: 500 });
+
+    const isValidationError = message.includes('required') || message.includes('data URL');
+
+    return NextResponse.json(
+      makeAIError(
+        'cloudflare',
+        isValidationError ? 'bad_request' : 'provider_unavailable',
+        message
+      ),
+      { status: isValidationError ? 400 : 503 }
+    );
   }
 }

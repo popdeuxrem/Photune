@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Grid3X3, List, Loader2 } from 'lucide-react';
+import { Plus, Search, Grid3X3, List } from 'lucide-react';
 
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -12,21 +12,22 @@ import { ProjectCard } from './ProjectCard';
 import { EmptyState } from './EmptyState';
 import { getUserProjects, deleteProject } from '@/features/dashboard/lib/actions';
 import { useDashboardControls } from '@/features/dashboard/hooks/useDashboardControls';
-import { normalizeProjects, type DashboardProject } from '@/features/dashboard/lib/normalize-projects';
+import {
+  normalizeProjects,
+  type DashboardProject,
+} from '@/features/dashboard/lib/normalize-projects';
 
-export function DashboardClient() {
+type DashboardClientProps = {
+  userEmail?: string;
+};
+
+export function DashboardClient({ userEmail = '' }: DashboardClientProps) {
   const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const { toast } = useToast();
-  const {
-    viewMode,
-    setViewMode,
-    searchQuery,
-    setSearchQuery,
-    sortMode,
-    setSortMode,
-  } = useDashboardControls();
+  const { viewMode, setViewMode, searchQuery, setSearchQuery, sortMode, setSortMode } =
+    useDashboardControls();
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
@@ -108,8 +109,12 @@ export function DashboardClient() {
     <div className="max-w-7xl mx-auto px-6 py-10 space-y-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">Your Designs</h1>
-          <p className="text-zinc-500 text-sm font-medium dark:text-zinc-400">Manage and edit your AI-powered projects.</p>
+          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+            Your Designs
+          </h1>
+          <p className="text-zinc-500 text-sm font-medium dark:text-zinc-400">
+            {userEmail || 'Manage and edit your AI-powered projects.'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -122,7 +127,11 @@ export function DashboardClient() {
           >
             {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid3X3 className="h-4 w-4" />}
           </Button>
-          <Button asChild size="lg" className="rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-xl shadow-zinc-200 dark:shadow-none h-12 px-8 dark:bg-zinc-100 dark:hover:bg-zinc-200">
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-xl shadow-zinc-200 dark:shadow-none h-12 px-8 dark:bg-zinc-100 dark:hover:bg-zinc-200"
+          >
             <Link href="/editor/new">
               <Plus className="mr-2 h-5 w-5" /> New Project
             </Link>
@@ -133,35 +142,48 @@ export function DashboardClient() {
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-[20px] border border-zinc-100 dark:border-zinc-800 shadow-sm">
         <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-          <Input 
+          <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by project name..." 
+            placeholder="Search by project name..."
             className="pl-12 h-12 border-none bg-transparent focus-visible:ring-0 text-base dark:bg-zinc-900 dark:text-zinc-100"
           />
         </div>
         <div className="hidden sm:flex items-center gap-3">
-            <select
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as 'updated_desc' | 'updated_asc' | 'name_asc')}
-              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
-              aria-label="Sort projects"
-            >
-              <option value="updated_desc">Newest first</option>
-              <option value="updated_asc">Oldest first</option>
-              <option value="name_asc">Name A–Z</option>
-            </select>
+          <select
+            value={sortMode}
+            onChange={(event) =>
+              setSortMode(event.target.value as 'updated_desc' | 'updated_asc' | 'name_asc')
+            }
+            className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+            aria-label="Sort projects"
+          >
+            <option value="updated_desc">Newest first</option>
+            <option value="updated_asc">Oldest first</option>
+            <option value="name_asc">Name A–Z</option>
+          </select>
 
-            <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest dark:text-zinc-400">
-              {visibleProjects.length} Projects
-            </span>
-          </div>
+          <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest dark:text-zinc-400">
+            {visibleProjects.length} Projects
+          </span>
+        </div>
       </div>
 
       {visibleProjects.length > 0 ? (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8' : 'grid grid-cols-1 gap-4'}>
-          {visibleProjects.map(p => (
-            <ProjectCard key={p.id} project={p} onDelete={handleDelete} variant={viewMode} />
+        <div
+          className={
+            viewMode === 'grid'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'
+              : 'grid grid-cols-1 gap-4'
+          }
+        >
+          {visibleProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={handleDelete}
+              variant={viewMode}
+            />
           ))}
         </div>
       ) : (

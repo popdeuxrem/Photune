@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErrorSummary, logError, logInfo, logWarn } from '@/shared/lib/logging/logger';
+
+import {
+  extractGroqOutputText,
+  makeAIError,
+  makeAISuccess,
+  parseGroqRequestPayload,
+} from '@/shared/lib/ai/ai-contract';
 import { requireGroqEnv } from '@/shared/lib/env/providers';
+import { getErrorSummary, logError, logInfo, logWarn } from '@/shared/lib/logging/logger';
 import { applyRateLimit, makeRateLimitKey } from '@/shared/lib/security/rate-limit';
 import { rateLimitResponse } from '@/shared/lib/security/rate-limit-response';
 
-/**
- * Groq API Proxy
- * Routes LLM/Vision requests through server-side to protect API key
- */
-export async function POST(req: NextRequest) {
-  requireGroqEnv();
+const GROQ_UPSTREAM_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+export async function POST(req: NextRequest) {
   const rateLimit = applyRateLimit({
     key: makeRateLimitKey('/api/ai/groq', req),
     windowMs: 60_000,
@@ -29,8 +32,6 @@ export async function POST(req: NextRequest) {
     return rateLimitResponse(rateLimit.retryAfterSeconds);
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
-
   logInfo({
     event: 'groq_request_start',
     surface: 'ai',
@@ -40,32 +41,42 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const body = await req.json();
+    requireGroqEnv();
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const payload = parseGroqRequestPayload(await req.json());
+    const apiKey = process.env.GROQ_API_KEY as string;
+
+    const response = await fetch(GROQ_UPSTREAM_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Groq API error:', error);
+      const errorText = await response.text();
+
       logError({
         event: 'groq_request_failure',
         surface: 'ai',
         route: '/api/ai/groq',
         provider: 'groq',
         operation: 'text_inference',
-        message: error,
+        statusCode: response.status,
+        message: errorText,
       });
-      return NextResponse.json({ error: 'Groq API error' }, { status: response.status });
+
+      return NextResponse.json(
+        makeAIError('groq', 'provider_error', 'Groq request failed.'),
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
+    const outputText = extractGroqOutputText(data);
+
     logInfo({
       event: 'groq_request_success',
       surface: 'ai',
@@ -73,9 +84,18 @@ export async function POST(req: NextRequest) {
       provider: 'groq',
       operation: 'text_inference',
     });
-    return NextResponse.json(data);
+
+    return NextResponse.json(
+      makeAISuccess('groq', {
+        outputText,
+        model: payload.model,
+        raw: data,
+      })
+    );
   } catch (error) {
-    console.error('Groq proxy error:', error);
+    const message =
+      error instanceof Error ? error.message : 'Groq request failed unexpectedly.';
+
     logError({
       event: 'groq_request_failure',
       surface: 'ai',
@@ -84,6 +104,19 @@ export async function POST(req: NextRequest) {
       operation: 'text_inference',
       ...getErrorSummary(error),
     });
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+
+    const isValidationError =
+      message.includes('required') ||
+      message.includes('invalid') ||
+      message.includes('must be');
+
+    return NextResponse.json(
+      makeAIError(
+        'groq',
+        isValidationError ? 'bad_request' : 'provider_unavailable',
+        message
+      ),
+      { status: isValidationError ? 400 : 503 }
+    );
   }
 }

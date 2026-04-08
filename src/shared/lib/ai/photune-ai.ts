@@ -3,10 +3,12 @@
  * - typed task entrypoints
  * - browser-safe local cache for string tasks
  * - serverless proxy calls only
+ * - deterministic fallbacks when providers fail
  */
 
 import { AICacheService } from '@/shared/lib/ai/ai-cache';
 import { hashJson } from '@/shared/lib/ai/ai-hash';
+import type { AIEnvelope, GroqTextResult, CloudflareTextResult } from '@/shared/lib/ai/ai-contract';
 
 export type Tone = 'professional' | 'casual' | 'marketing' | 'concise';
 export type FontCategory = 'sans-serif' | 'serif' | 'monospaced' | 'handwriting';
@@ -37,14 +39,6 @@ type GroqPayload = {
   max_tokens?: number;
 };
 
-type GroqResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-};
-
 const GROQ_ENDPOINT = '/api/ai/groq';
 const WORKERS_ENDPOINT = '/api/ai/workers';
 
@@ -55,20 +49,22 @@ const VISION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const FONT_SYSTEM: Record<FontCategory, Omit<FontSuggestion, 'category'>> = {
   'sans-serif': { family: 'Inter', weight: '400' },
-  'serif': { family: 'Playfair Display', weight: '700' },
-  'monospaced': { family: 'JetBrains Mono', weight: '500' },
-  'handwriting': { family: 'Dancing Script', weight: '400' },
+  serif: { family: 'Playfair Display', weight: '700' },
+  monospaced: { family: 'JetBrains Mono', weight: '500' },
+  handwriting: { family: 'Dancing Script', weight: '400' },
 };
 
 function sanitizeModelText(input: string | undefined, fallback: string): string {
   const trimmed = (input ?? '').trim();
   if (!trimmed) return fallback;
 
-  return trimmed
-    .replace(/^["'`]+|["'`]+$/g, '')
-    .replace(/^```[\s\S]*?\n/, '')
-    .replace(/```$/g, '')
-    .trim() || fallback;
+  return (
+    trimmed
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/^```[\s\S]*?\n/, '')
+      .replace(/```$/g, '')
+      .trim() || fallback
+  );
 }
 
 function normalizeToneContext(tone: Tone): string {
@@ -95,11 +91,11 @@ function parseFontCategory(input: string): FontCategory {
   return 'sans-serif';
 }
 
-async function fetchJsonWithTimeout<TResponse>(
+async function fetchJsonEnvelope<TData>(
   url: string,
   payload: unknown,
   timeoutMs: number = DEFAULT_TIMEOUT_MS
-): Promise<TResponse> {
+): Promise<AIEnvelope<TData>> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
@@ -111,11 +107,7 @@ async function fetchJsonWithTimeout<TResponse>(
       signal: controller.signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`Upstream request failed with status ${response.status}`);
-    }
-
-    return (await response.json()) as TResponse;
+    return (await response.json()) as AIEnvelope<TData>;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -148,14 +140,13 @@ async function invokeGroqString(
       }
     }
 
-    const data = await fetchJsonWithTimeout<GroqResponse>(
-      GROQ_ENDPOINT,
-      payload,
-      timeoutMs
-    );
+    const envelope = await fetchJsonEnvelope<GroqTextResult>(GROQ_ENDPOINT, payload, timeoutMs);
 
-    const raw = data.choices?.[0]?.message?.content;
-    const content = sanitizeModelText(raw, fallback);
+    if (!envelope.ok) {
+      return fallback;
+    }
+
+    const content = sanitizeModelText(envelope.data.outputText, fallback);
 
     if (cacheTtlMs > 0 && content !== fallback) {
       await AICacheService.set(cacheKey, content, cacheTtlMs);
@@ -272,7 +263,9 @@ export const PhotuneAI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task: 'image-gen',
-          prompt: `Studio photography, high resolution, professional lighting, ${prompt}`,
+          prompt: {
+            prompt: `Studio photography, high resolution, professional lighting, ${prompt}`,
+          },
         }),
         signal: controller.signal,
       });
@@ -281,9 +274,45 @@ export const PhotuneAI = {
         throw new Error(`Image generation failed with status ${response.status}`);
       }
 
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('image/')) {
+        throw new Error('Image generation returned a non-image response.');
+      }
+
       return await response.blob();
     } finally {
       window.clearTimeout(timeout);
+    }
+  },
+
+  async rewriteWithMetadata(
+    text: string,
+    tone: Tone = 'professional'
+  ): Promise<{ suggestion: string; changed: boolean }> {
+    const suggestion = await this.rewrite(text, tone);
+
+    return {
+      suggestion,
+      changed: suggestion.trim() !== text.trim(),
+    };
+  },
+
+  async textGen(prompt: string, fallback: string): Promise<string> {
+    try {
+      const envelope = await fetchJsonEnvelope<CloudflareTextResult>(WORKERS_ENDPOINT, {
+        task: 'text-gen',
+        prompt: {
+          messages: [{ role: 'user', content: prompt }],
+        },
+      });
+
+      if (!envelope.ok) {
+        return fallback;
+      }
+
+      return sanitizeModelText(envelope.data.outputText, fallback);
+    } catch {
+      return fallback;
     }
   },
 };

@@ -1,257 +1,345 @@
 # SYSTEM_INVENTORY
 
-## 1. Application Runtime
+## Objective
+Provide a verified inventory of the current Photune repository so planning and implementation can reference actual system surfaces rather than inferred structure.
 
-### Framework
-- Next.js App Router
-- React 18
-- TypeScript 5
+## 1. Runtime Inventory
+
+### Framework and Language
+- Next.js `^14.2.3`
+- React `^18.2.0`
+- TypeScript `^5`
 
 ### Package Manager
 - npm
 - lockfile present: `package-lock.json`
 
-### Current NPM Scripts
+### Build / Validation Scripts
 - `npm run dev`
 - `npm run build`
 - `npm run start`
 - `npm run lint`
+- `npm run typecheck`
+- `npm run check`
+- `npm run smoke:projects`
+- `npm run smoke`
+- `npm run smoke:providers`
+- `npm run providers:classify`
 
-## 2. Source Topology
+## 2. Repository Topology
 
-### Root
+### Root Directories
 - `.devcontainer/`
-- `.github/workflows/`
+- `.github/`
+- `artifacts/`
 - `public/`
+- `scripts/`
 - `src/`
 - `supabase/`
+
+### Root Config / Control Files
 - `.env.example`
+- `.eslintrc.json`
+- `components.json`
+- `jsconfig.json`
 - `next.config.mjs`
-- `vercel.json`
 - `package.json`
+- `postcss.config.mjs`
+- `tailwind.config.ts`
+- `tsconfig.json`
+- `vercel.json`
 
-### `src/`
-- `app/`
-- `features/`
-- `shared/`
-- `types/`
-- `middleware.ts`
+### Root Documentation Layer
+The repository contains extensive documentation, including kernel, audit, editor design, provider policy, deployment, security, and validation artifacts.
 
-## 3. Route Inventory
+## 3. Application Route Inventory
 
-### Public / Root
-- `/` → landing page
-- `not-found` route present
+### Root App Files
+- `src/app/layout.tsx`
+- `src/app/page.tsx`
+- `src/app/not-found.tsx`
+- `src/app/globals.css`
+- `src/app/forgot-password/page.tsx`
 
 ### Auth Route Group: `src/app/(auth)`
-- `/auth`
-- `/login`
-- `/signup`
+- `src/app/(auth)/auth/page.tsx`
+- `src/app/(auth)/login/page.tsx`
+- `src/app/(auth)/signup/page.tsx`
 
 ### Main App Route Group: `src/app/(main)`
-- `/dashboard`
-- `/editor/[projectId]`
-- `/onboarding`
-- `/settings`
+- `src/app/(main)/layout.tsx`
+- `src/app/(main)/loading.tsx`
+- `src/app/(main)/dashboard/page.tsx`
+- `src/app/(main)/editor/[projectId]/page.tsx`
+- `src/app/(main)/onboarding/page.tsx`
+- `src/app/(main)/settings/page.tsx`
 
-### API Route Groups: `src/app/api`
-- `/api/ai/groq`
-- `/api/ai/inpaint`
-- `/api/ai/workers`
-- `/api/auth/callback`
-- `/api/payments/crypto`
-- `/api/payments/paystack`
-- `/api/stripe/checkout`
-- `/api/stripe/portal`
-- `/api/stripe/webhook`
+### API Route Inventory: `src/app/api`
+- `src/app/api/ai/groq/route.ts`
+- `src/app/api/ai/inpaint/route.ts`
+- `src/app/api/ai/workers/route.ts`
+- `src/app/api/auth/callback/route.ts`
+- `src/app/api/stripe/checkout/route.ts`
+- `src/app/api/stripe/portal/route.ts`
+- `src/app/api/stripe/webhook/route.ts`
+
+### App Asset Inventory
+Fonts bundled in app tree:
+- `Geist-Bold.woff2`
+- `Geist-Regular.woff2`
+- `GeistMono-Regular.woff2`
 
 ## 4. Feature Inventory
 
 ### `src/features/authentication`
-Purpose:
-- sign-in / sign-up UI and auth feature components
+Verified files:
+- `components/SignInForm.tsx`
+- `components/SignUpForm.tsx`
+- `components/SocialAuth.tsx`
+- `hooks/useUser.ts`
+- `lib/actions.ts`
+
+Responsibility:
+- user entry/auth UI
+- auth state hooks
+- auth server actions
 
 ### `src/features/dashboard`
-Purpose:
-- project listing
-- project deletion
-- dashboard presentation
+Verified files:
+- `components/DashboardClient.tsx`
+- `components/EmptyState.tsx`
+- `components/ProjectCard.tsx`
+- `hooks/useDashboardControls.ts`
+- `lib/actions.ts`
+- `lib/normalize-projects.ts`
 
-Confirmed behavior:
-- queries `projects`
-- deletes from `projects`
+Responsibility:
+- project listing and dashboard presentation
+- project deletion
+- normalized dashboard data handling
 
 ### `src/features/editor`
-Purpose:
-- editor shell
-- canvas
-- toolbar/sidebar
-- job status
-- editor eventing and save workflow
+Verified sub-surfaces:
+- core editor shell and client
+- canvas component
+- ingestion status
+- mode navigation
+- empty state
+- export modal
+- job status panel
+- text properties
+- AI tools modal
+- title assist
 
-Confirmed behavior:
-- editor dispatches `photune-save`
-- loads `canvas_data` from project records
-- assumes background image rehydration with CORS-safe reloads
+Verified panel inventory:
+- `BackgroundModePanel.tsx`
+- `EffectModePanel.tsx`
+- `EraseModePanel.tsx`
+- `ExportModePanel.tsx`
+- `LayersModePanel.tsx`
+- `RewriteModePanel.tsx`
+- `TextModePanel.tsx`
+- `UploadModePanel.tsx`
 
-## 5. Shared Module Inventory
+Verified toolbar inventory:
+- `AiToolsPanel.tsx`
+- `BatchProcessorPanel.tsx`
+- `BrandKitPanel.tsx`
+- `EffectsPanel.tsx`
+- `InfoPanel.tsx`
+- `RemovePanel.tsx`
+- `Sidebar.tsx`
+- `StampPanel.tsx`
+
+Verified editor library inventory:
+- `actions.ts`
+- `color-sampling.ts`
+- `create-text-object.ts`
+- `export-utils.ts`
+- `font-matcher.ts`
+- `image-filters.ts`
+- `inpainting.ts`
+- `layer-filters.ts`
+- `layer-system.ts`
+- `ocr-engine.ts`
+- `ocr-worker.ts`
+- `preprocessing.ts`
+
+Responsibility:
+- canvas-driven editing
+- OCR-assisted text workflows
+- export pipeline
+- layer system behaviors
+- AI and image manipulation helpers
+
+## 5. Shared Library Inventory
 
 ### `src/shared/config`
 - `site.ts`
-- current site config still names the product `phoTextAI`
 
-### `src/shared/lib`
-Observed modules:
-- `supabase/`
-- `ai-client.ts`
+Responsibility:
+- site identity and description
+
+### `src/shared/lib/env`
+- `server.ts`
+- `providers.ts`
 - `email.ts`
+
+Responsibility:
+- fail-fast environment validation for runtime, provider, and email configuration
+
+### `src/shared/lib/security`
+- `rate-limit.ts`
+- `rate-limit-response.ts`
+- `upload-validation.ts`
+
+Responsibility:
+- API throttling helpers
+- upload MIME/size validation
+- HTTP 429 response normalization
+
+### `src/shared/lib/supabase`
+- `client.ts`
+- `server.ts`
+
+Responsibility:
+- browser/server Supabase access
+
+### `src/shared/lib/ai`
+- `ai-cache.ts`
+- `ai-hash.ts`
 - `photune-ai.ts`
-- `stripe-client.ts`
+
+Additional AI-related shared files:
+- `ai-client.ts`
+- `photune-ai.ts`
+
+Responsibility:
+- AI adapter, request, and caching helpers
+
+### `src/shared/lib/billing / email / logging`
 - `stripe.ts`
+- `stripe-client.ts`
 - `subscription.ts`
-- `utils.ts`
+- `email.ts`
+- `email/provider.ts`
+- `logging/logger.ts`
 
-Note: `paystack.ts` and `nowpayments.ts` removed (Batches 3-4)
+Responsibility:
+- billing session/webhook support
+- feature entitlements by tier
+- transactional email delivery via Mailgun
+- structured logging helpers
 
-### `src/shared/store`
-- Zustand-backed editor/application state
+## 6. Data Inventory
 
-### `src/shared/templates/email`
-- email template directory exists
-
-## 6. Persistence Inventory
-
-### Checked-in SQL Schema
-File:
+### Supabase Schema Artifacts
 - `supabase/schema.sql`
+- `supabase/migrations/20260403_000001_create_projects.sql`
 
-Tables present:
+### Verified Tables in `supabase/schema.sql`
 - `user_subscriptions`
 - `brand_kits`
 - `ai_usage_logs`
 - `payment_references`
 - `crypto_payments`
-
-### Persistence Expectations in App Code
-Required but absent from checked-in schema:
 - `projects`
 
-Expected `projects` fields from code/README:
+### Projects Table Contract
+Verified columns:
 - `id`
 - `user_id`
 - `name`
 - `canvas_data`
 - `original_image_url`
-- timestamps
+- `created_at`
+- `updated_at`
 
-## 7. Auth Inventory
+Verified controls:
+- RLS enabled
+- ownership policy present
+- update trigger present
+- indexes present
 
-### Provider
-- Supabase Auth via `@supabase/ssr`
+## 7. Script Inventory
 
-### Clients
-- browser client in `src/shared/lib/supabase/client.ts`
-- server client in `src/shared/lib/supabase/server.ts`
+### `scripts/`
+- `classify-provider-surface.sh`
+- `install-kilo-cli.sh`
+- `provider-inventory.sh`
+- `smoke-projects.mjs`
+- `smoke-provider-policy.mjs`
 
-### Session / Guarding
-- middleware refreshes/gets user
-- protects `/dashboard`, `/editor`, `/onboarding`
-- redirects authenticated users away from auth pages
+Responsibility:
+- provider classification
+- provider inventory generation
+- smoke validation for projects contract
+- smoke validation for provider policy discipline
 
-### Callback
-- `/api/auth/callback`
-- exchanges auth code for session
-- redirects to `/dashboard` on success
+### Root Helper Scripts
+- `PATCH_FIX_TEXT_FONT_TYPES.sh`
+- `PATCH_FIX_TEXT_FONT_TYPES_V2.sh`
+- `VERIFY_AI_TASK_ADAPTERS.sh`
+- `VERIFY_AI_TASK_STATUS_HOOK.sh`
+- `VERIFY_FIX_TEXT_FONT_TYPES_V2.sh`
 
-## 8. AI Inventory
+Assessment:
+- repository contains implementation-era helper scripts beyond the main npm workflow
+- not all helper scripts are guaranteed to be part of the canonical validation gate
 
-### Browser-side AI usage
-- `ai-client.ts` uses `puter` when available
-- fallback path calls `/api/ai/workers`
+## 8. Deployment / CI Inventory
 
-### Server-side AI routes
-- Groq proxy for chat completions
-- Cloudflare inpaint route
-- Cloudflare workers route for image gen / text gen
-
-### AI Operations Explicitly Referenced
-- rewrite
-- font detection / matching
-- captioning
-- inpainting
-- image generation
-
-## 9. Payment Inventory
-
-### Stripe
-- checkout route
-- portal route
-- webhook route
-- shared Stripe library
-- `user_subscriptions` table integration
-
-### Paystack
-- shared paystack library
-- `payment_references` table suggests persistence for paystack/stripe
-- API route subtree exists
-
-### Crypto / NowPayments
-- shared crypto library
-- `crypto_payments` table
-- API route subtree exists
-- helper explicitly notes production webhook verification is incomplete
-
-## 10. Email Inventory
-- `mailgun.js` dependency
-- checked shared email implementation uses Mailgun
-
-## 11. Deployment Inventory
-
-### Hosting
-- Vercel is the explicit deployment target
-
-### Deployment Config
-- `vercel.json`
-- immutable cache for `/fonts/*`
-- minimal global headers
-
-### CI/CD
+### GitHub Actions
 - `.github/workflows/ci.yml`
-- deploys through Vercel CLI
-- production-oriented workflow
-- no separate hard validation stage
 
-## 12. Observability / Ops Inventory
-Present:
-- some console logging in server actions / API handlers
+Verified jobs:
+- `validate`
+- `deploy`
 
-Missing:
-- structured logging
-- tracing
-- metrics
-- uptime checks
-- alerting
-- incident/runbook docs
-- rollback automation
+### Deployment Target
+- Vercel via `vercel.json`
+- build/install assumptions encoded in workflow and config
 
-## 13. Dependency Risk Summary
+### Dev Environment
+- `.devcontainer/devcontainer.json`
+- Node-focused containerized development path
 
-### High-confidence production dependencies
-- Next.js
-- React
-- Supabase
-- Fabric.js
-- Tesseract.js
-- Stripe
+## 9. Security / Policy Inventory
 
-### Scope-expanding dependencies
-- Mailgun
-- Resend
-- Paystack
-- NowPayments
-- Groq
-- Cloudflare AI
-- Puter runtime integration
+### Verified Security Controls
+- response headers in `vercel.json`
+- content security policy in `vercel.json`
+- upload validation helper
+- rate limiting helper
+- environment requirement guards
 
-These are not yet reduced to a disciplined production boundary.
+### Provider Governance Artifacts
+- `PROVIDER_POLICY.md`
+- `PROVIDER_QUARANTINE.md`
+- `PROVIDER_REMOVAL_STRATEGY.md`
+- `artifacts/provider-inventory.md`
 
+## 10. Product / Commercial Inventory
+
+### Subscription Tiers
+Defined in `src/shared/lib/subscription.ts`:
+- `free`
+- `pro`
+- `enterprise`
+
+### Tiered Feature Concepts
+Verified in code:
+- watermark behavior
+- export entitlement differences
+- AI credits
+- batch processing
+- brand kit
+- priority support
+- enterprise custom branding flag
+
+## 11. Inventory Conclusions
+1. Photune already contains a broad application surface spanning auth, dashboard, editor, AI, billing, and persistence.
+2. The active billing path is Stripe; active transactional email path is Mailgun.
+3. The editor is modular and materially implemented, not conceptual.
+4. The repository includes both product code and substantial governance/operations documentation.
+5. The main inventory risk is not missing structure but allowing inactive or deferred surfaces to continue drifting inside docs, schema, or helper scripts.
