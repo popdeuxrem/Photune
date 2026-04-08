@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { useAppStore } from '@/shared/store/useAppStore';
+import { applyLayerLockState, inferLayerRoleForObject, isLayerLocked, tagLayerObject } from '@/features/editor/lib/layer-system';
 
 interface CanvasProps {
   onReady?: () => void;
@@ -37,14 +38,57 @@ export function Canvas({ onReady }: CanvasProps) {
     });
 
     // 3. Selection Events
-    canvas.on('selection:created', (e) => setActiveObject(e.selected?.[0] || null));
-    canvas.on('selection:updated', (e) => setActiveObject(e.selected?.[0] || null));
-    canvas.on('selection:cleared', () => setActiveObject(null));
+    const handleSelection = (event: fabric.IEvent) => {
+      const selected = event.selected?.[0] || canvas.getActiveObject() || null;
+
+      if (selected && isLayerLocked(selected)) {
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        setActiveObject(null);
+        return;
+      }
+
+      setActiveObject(selected);
+    };
+
+    const handleSelectionCleared = () => {
+      setActiveObject(null);
+    };
+
+    const handleMouseDown = (event: fabric.IEvent) => {
+      const target = event.target || null;
+      if (!target) return;
+
+      if (isLayerLocked(target)) {
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        setActiveObject(null);
+      }
+    };
+
+    canvas.on('selection:created', handleSelection);
+    canvas.on('selection:updated', handleSelection);
+    canvas.on('selection:cleared', handleSelectionCleared);
+    canvas.on('mouse:down', handleMouseDown);
 
     // 4. Persistence & History Events
     canvas.on('object:modified', () => saveState());
-    canvas.on('object:added', (e: any) => {
-      if (e.target && !e.target.isImporting) saveState();
+    canvas.on('object:added', (event: fabric.IEvent) => {
+      const target = event.target as (fabric.Object & { isImporting?: boolean }) | undefined;
+      if (!target) return;
+
+      const objects = canvas.getObjects();
+      const index = objects.indexOf(target);
+      tagLayerObject(
+        target,
+        inferLayerRoleForObject(target),
+        index >= 0 ? index : 0,
+        objects
+      );
+
+      if (!target.isImporting) {
+        saveState();
+      }
     });
 
     // 5. Delete Logic (Backspace/Delete keys)
@@ -72,6 +116,18 @@ export function Canvas({ onReady }: CanvasProps) {
     // 6. Cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      canvas.off('selection:created', handleSelection);
+      canvas.off('selection:updated', handleSelection);
+      canvas.off('selection:cleared', handleSelectionCleared);
+      canvas.off('mouse:down', handleMouseDown);
+      canvas.off('object:modified', () => saveState());
+      canvas.off('object:added', (e: fabric.IEvent) => {
+        const target = e.target as (fabric.Object & { isImporting?: boolean }) | undefined;
+        if (!target) return;
+        const index = canvas.getObjects().indexOf(target);
+        tagLayerObject(target, inferLayerRoleForObject(target), index >= 0 ? index : 0);
+        if (!target.isImporting) saveState();
+      });
       canvas.dispose();
     };
   }, [setFabricCanvas, setActiveObject, saveState, onReady]);

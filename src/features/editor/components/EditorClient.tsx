@@ -20,6 +20,7 @@ import { EraseModePanel } from './Panels/EraseModePanel';
 import { RewriteModePanel } from './Panels/RewriteModePanel';
 import { BackgroundModePanel } from './Panels/BackgroundModePanel';
 import { LayersModePanel } from './Panels/LayersModePanel';
+import { applyLayerLockState, inferLayerRoleForObject, tagLayerObject } from '@/features/editor/lib/layer-system';
 
 interface EditorClientProps {
   projectId: string;
@@ -214,6 +215,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             if (cancelled) return;
 
             img.set({ crossOrigin: 'anonymous' });
+            tagLayerObject(img, 'background', 0, fabricCanvas.getObjects());
+            applyLayerLockState(img, true);
             fabricCanvas.setBackgroundImage(
               img,
               fabricCanvas.renderAll.bind(fabricCanvas),
@@ -239,6 +242,14 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
 
         fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
           if (cancelled) return;
+
+          fabricCanvas.getObjects().forEach((obj, index) => {
+            const objects = fabricCanvas.getObjects();
+            const tagged = tagLayerObject(obj, inferLayerRoleForObject(obj), index, objects);
+            if (tagged.photuneRole === 'background') {
+              applyLayerLockState(tagged, true);
+            }
+          });
 
           fabricCanvas.renderAll();
           (fabricCanvas as any).isImporting = false;
@@ -280,6 +291,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     img.onload = () => {
       fabric.Image.fromURL(pendingUploadUrl, (fabricImg) => {
         fabricImg.set({ crossOrigin: 'anonymous' });
+        tagLayerObject(fabricImg, 'background', 0, fabricCanvas.getObjects());
+        applyLayerLockState(fabricImg, true);
         fabricCanvas.setBackgroundImage(fabricImg, fabricCanvas.renderAll.bind(fabricCanvas), {
           scaleX: fabricCanvas.width ? fabricCanvas.width / (fabricImg.width || 1) : 1,
           scaleY: fabricCanvas.height ? fabricCanvas.height / (fabricImg.height || 1) : 1,

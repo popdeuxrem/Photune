@@ -11,47 +11,22 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { ProjectCard } from './ProjectCard';
 import { EmptyState } from './EmptyState';
 import { getUserProjects, deleteProject } from '@/features/dashboard/lib/actions';
-
-type Project = {
-  id: string;
-  name: string;
-  original_image_url: string | null;
-  updated_at: string;
-};
-
-type ViewMode = 'grid' | 'list';
-
-const DASHBOARD_VIEW_MODE_KEY = 'photune.dashboard.viewMode';
-
-function normalizeProjects(input: unknown): Project[] {
-  if (!Array.isArray(input)) return [];
-
-  return input
-    .map((item) => {
-      if (!item || typeof item !== 'object') return null;
-      const value = item as Record<string, unknown>;
-
-      const id = typeof value.id === 'string' ? value.id : '';
-      const name = typeof value.name === 'string' ? value.name : 'Untitled Project';
-      const original_image_url =
-        typeof value.original_image_url === 'string' ? value.original_image_url : null;
-      const updated_at =
-        typeof value.updated_at === 'string' ? value.updated_at : new Date(0).toISOString();
-
-      if (!id) return null;
-
-      return { id, name, original_image_url, updated_at };
-    })
-    .filter((project): project is Project => Boolean(project));
-}
+import { useDashboardControls } from '@/features/dashboard/hooks/useDashboardControls';
+import { normalizeProjects, type DashboardProject } from '@/features/dashboard/lib/normalize-projects';
 
 export function DashboardClient() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const { toast } = useToast();
+  const {
+    viewMode,
+    setViewMode,
+    searchQuery,
+    setSearchQuery,
+    sortMode,
+    setSortMode,
+  } = useDashboardControls();
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
@@ -74,27 +49,6 @@ export function DashboardClient() {
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
-
-  // Restore view mode from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(DASHBOARD_VIEW_MODE_KEY);
-      if (stored === 'grid' || stored === 'list') {
-        setViewMode(stored);
-      }
-    } catch (error) {
-      console.warn('Failed to restore dashboard view mode:', error);
-    }
-  }, []);
-
-  // Persist view mode when it changes
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(DASHBOARD_VIEW_MODE_KEY, viewMode);
-    } catch (error) {
-      console.warn('Failed to persist dashboard view mode:', error);
-    }
-  }, [viewMode]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -121,12 +75,30 @@ export function DashboardClient() {
     [projects, toast]
   );
 
-  const filteredProjects = useMemo(() => {
+  const visibleProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return projects;
 
-    return projects.filter((project) => project.name.toLowerCase().includes(query));
-  }, [projects, searchQuery]);
+    const filtered = !query
+      ? projects
+      : projects.filter((project) => project.name.toLowerCase().includes(query));
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortMode === 'name_asc') {
+        return a.name.localeCompare(b.name);
+      }
+
+      const aTime = new Date(a.updated_at).getTime();
+      const bTime = new Date(b.updated_at).getTime();
+
+      if (sortMode === 'updated_asc') {
+        return aTime - bTime;
+      }
+
+      return bTime - aTime;
+    });
+
+    return sorted;
+  }, [projects, searchQuery, sortMode]);
 
   if (isLoading) {
     return <DashboardLoadingSkeleton />;
@@ -168,21 +140,32 @@ export function DashboardClient() {
             className="pl-12 h-12 border-none bg-transparent focus-visible:ring-0 text-base dark:bg-zinc-900 dark:text-zinc-100"
           />
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-4 border-l border-zinc-100 dark:border-zinc-800">
-          <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest dark:text-zinc-400">
-            {filteredProjects.length} Projects
-          </span>
-        </div>
+        <div className="hidden sm:flex items-center gap-3">
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as 'updated_desc' | 'updated_asc' | 'name_asc')}
+              className="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+              aria-label="Sort projects"
+            >
+              <option value="updated_desc">Newest first</option>
+              <option value="updated_asc">Oldest first</option>
+              <option value="name_asc">Name A–Z</option>
+            </select>
+
+            <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest dark:text-zinc-400">
+              {visibleProjects.length} Projects
+            </span>
+          </div>
       </div>
 
-      {filteredProjects.length > 0 ? (
+      {visibleProjects.length > 0 ? (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8' : 'grid grid-cols-1 gap-4'}>
-          {filteredProjects.map(p => (
+          {visibleProjects.map(p => (
             <ProjectCard key={p.id} project={p} onDelete={handleDelete} variant={viewMode} />
           ))}
         </div>
       ) : (
-        <EmptyState isSearch={searchQuery.length > 0} />
+        <EmptyState isSearch={searchQuery.trim().length > 0} />
       )}
     </div>
   );
