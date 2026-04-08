@@ -193,38 +193,71 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Single deterministic restore path on reload
   useEffect(() => {
-    // 1. Check if we have a canvas and initial data to load
-    if (fabricCanvas && initialProjectData?.canvas_data) {
-      
-      // Set a temporary flag to prevent the 'object:added' event 
-      // from flooding the history stack during the initial load
-      (fabricCanvas as any).isImporting = true;
+    if (!fabricCanvas) return;
 
-      fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
-        // 2. Fix Background Image CORS
-        // If the background image came from Cloudflare or Supabase, 
-        // we must re-apply the anonymous crossOrigin to allow exporting later.
-        const bg = fabricCanvas.backgroundImage as fabric.Image;
-        if (bg && bg.getSrc()) {
-          const src = bg.getSrc();
-          fabric.Image.fromURL(src, (img) => {
-            img.set({ crossOrigin: 'anonymous' });
-            fabricCanvas.setBackgroundImage(
-              img, 
-              fabricCanvas.renderAll.bind(fabricCanvas), 
-              { crossOrigin: 'anonymous' }
-            );
-          }, { crossOrigin: 'anonymous' });
-        }
+    let cancelled = false;
 
-        fabricCanvas.renderAll();
-        
-        // 3. Reset flag and save the "Initial State" into history
-        (fabricCanvas as any).isImporting = false;
-        saveState();
+    const restore = async () => {
+      console.log('[reload] checking restore options:', {
+        hasCanvasData: Boolean(initialProjectData?.canvas_data),
+        hasOriginalImageUrl: Boolean(initialProjectData?.original_image_url),
       });
-    }
+
+      // Priority 1: Restore from canvas_data (includes background image if saved)
+      if (initialProjectData?.canvas_data) {
+        console.log('[reload] restoring from canvas_data');
+        (fabricCanvas as any).isImporting = true;
+        
+        fabricCanvas.loadFromJSON(initialProjectData.canvas_data, () => {
+          if (cancelled) return;
+          
+          // Fix CORS for background image
+          const bg = fabricCanvas.backgroundImage as fabric.Image;
+          if (bg && bg.getSrc()) {
+            const src = bg.getSrc();
+            fabric.Image.fromURL(src, (img) => {
+              if (cancelled) return;
+              img.set({ crossOrigin: 'anonymous' });
+              fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+                crossOrigin: 'anonymous'
+              });
+            }, { crossOrigin: 'anonymous' });
+          }
+          
+          fabricCanvas.renderAll();
+          (fabricCanvas as any).isImporting = false;
+          setHasContent(true);
+          console.log('[reload] canvas_data restored successfully');
+          saveState();
+        });
+        return;
+      }
+
+      // Priority 2: Restore from original_image_url
+      if (initialProjectData?.original_image_url) {
+        console.log('[reload] restoring from original_image_url');
+        fabric.Image.fromURL(initialProjectData.original_image_url, (img) => {
+          if (cancelled) return;
+          
+          img.set({ crossOrigin: 'anonymous' });
+          fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+            scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
+            scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
+          });
+          fabricCanvas.renderAll();
+          setHasContent(true);
+          console.log('[reload] original_image_url restored successfully');
+        }, { crossOrigin: 'anonymous' });
+      }
+    };
+
+    restore();
+
+    return () => {
+      cancelled = true;
+    };
   }, [fabricCanvas, initialProjectData, saveState]);
 
   // Check for initial content on mount and update when canvas becomes available
@@ -248,27 +281,6 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
       }
     }
   }, [fabricCanvas, hasContent]);
-
-  // Restore uploaded image from initialProjectData.original_image_url on reload
-  useEffect(() => {
-    console.log('[reload] checking restore conditions:', { 
-      fabricCanvas: Boolean(fabricCanvas), 
-      original_image_url: initialProjectData?.original_image_url 
-    });
-    if (!fabricCanvas || !initialProjectData?.original_image_url) return;
-    
-    console.log('[reload] restoring image from original_image_url:', initialProjectData.original_image_url.substring(0, 50) + '...');
-    fabric.Image.fromURL(initialProjectData.original_image_url, (img) => {
-      img.set({ crossOrigin: 'anonymous' });
-      fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
-        scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
-        scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
-      });
-      fabricCanvas.renderAll();
-      setHasContent(true);
-      console.log('[reload] image restored successfully');
-    }, { crossOrigin: 'anonymous' });
-  }, [fabricCanvas, initialProjectData?.original_image_url]);
 
   // Consume pending upload when canvas becomes ready
   useEffect(() => {
