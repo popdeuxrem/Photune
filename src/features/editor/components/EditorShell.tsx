@@ -35,15 +35,17 @@ export function EditorShell({
             {canvas}
           </section>
 
-          <section className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
-            {mobilePanel}
-          </section>
-
           {mobileModeNav ? (
-            <section className="shrink-0 lg:hidden">
+            <section className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
               {mobileModeNav}
             </section>
           ) : null}
+
+          <section className="max-h-[40vh] min-h-0 shrink-0 overflow-y-auto border-t border-zinc-200 dark:border-zinc-800 lg:hidden">
+            <div className="px-4 py-3">
+              {mobilePanel}
+            </div>
+          </section>
         </main>
 
         <aside className="hidden shrink-0 border-l border-zinc-200 dark:border-zinc-800 xl:flex">

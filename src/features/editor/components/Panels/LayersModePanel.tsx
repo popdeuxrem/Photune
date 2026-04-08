@@ -102,23 +102,32 @@ export function LayersModePanel({
                   key={layer.id}
                   className={[
                     'group rounded-xl border px-3 py-3 transition',
-                    isActive
-                      ? 'border-primary/40 bg-primary/5'
-                      : 'border-transparent hover:border-border hover:bg-muted/40',
+                    layer.locked
+                      ? 'border-border/50 bg-muted/30 opacity-75'
+                      : isActive
+                        ? 'border-primary/40 bg-primary/5'
+                        : 'border-transparent hover:border-border hover:bg-muted/40',
                   ].join(' ')}
                 >
                   <button
                     type="button"
                     onClick={() => selectLayer(layer)}
-                    className="flex w-full items-start gap-3 text-left"
+                    className={`flex w-full items-start gap-3 text-left ${layer.locked ? 'pointer-events-none cursor-not-allowed' : ''}`}
+                    disabled={layer.locked}
                   >
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[10px] font-semibold uppercase text-muted-foreground">
+                    <div className="relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[10px] font-semibold uppercase text-muted-foreground">
                       {layer.role}
+                      {layer.locked && (
+                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/40 backdrop-blur-[1px]">
+                          <Lock className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-foreground">
+                      <div className={`truncate text-sm font-medium ${layer.locked ? 'text-muted-foreground' : 'text-foreground'}`}>
                         {layer.label}
+                        {layer.locked && <span className="ml-2 text-xs text-muted-foreground">(locked)</span>}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         z-index {layer.index}
