@@ -4,7 +4,11 @@ import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { useAppStore } from '@/shared/store/useAppStore';
 
-export function Canvas() {
+interface CanvasProps {
+  onReady?: () => void;
+}
+
+export function Canvas({ onReady }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { setFabricCanvas, setActiveObject, saveState } = useAppStore();
@@ -59,13 +63,18 @@ export function Canvas() {
     window.addEventListener('keydown', handleKeyDown);
     setFabricCanvas(canvas);
     console.log('[canvas] fabricCanvas initialized and stored in zustand');
+    
+    // Signal canvas is ready
+    if (onReady) {
+      setTimeout(() => onReady(), 0);
+    }
 
     // 6. Cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       canvas.dispose();
     };
-  }, [setFabricCanvas, setActiveObject, saveState]);
+  }, [setFabricCanvas, setActiveObject, saveState, onReady]);
 
   return (
     <div ref={containerRef} className="canvas-shadow bg-white rounded shadow-[0_0_50px_rgba(0,0,0,0.1)] border border-zinc-200">

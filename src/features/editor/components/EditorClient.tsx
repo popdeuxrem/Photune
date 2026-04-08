@@ -30,7 +30,6 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   const { fabricCanvas, saveState, undo, redo, canUndo, canRedo } = useAppStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingUploadRef = useRef<File | null>(null);
   const [hasContent, setHasContent] = useState(false);
   const [activeMode, setActiveMode] = useState<EditorMode>('upload');
   const [ingestionState, setIngestionState] = useState<
@@ -38,6 +37,13 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   >('idle');
   const [ingestionMessage, setIngestionMessage] = useState('');
   const [ingestionError, setIngestionError] = useState('');
+  const [pendingUploadUrl, setPendingUploadUrl] = useState<string | null>(null);
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
+
+  const handleCanvasReady = useCallback(() => {
+    console.log('[canvas] ready signal received');
+    setIsCanvasReady(true);
+  }, []);
 
   const handleUploadClick = () => {
     setIngestionError('');
@@ -47,15 +53,6 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
   };
 
   const processUpload = useCallback(async (file: File) => {
-    if (!fabricCanvas) {
-      console.log('[upload] fabricCanvas not ready, storing pending upload');
-      setIngestionState('uploading');
-      setIngestionMessage('Waiting for editor to initialize...');
-      pendingUploadRef.current = file;
-      return;
-    }
-
-    console.log('[upload] validating file');
     const validation = validateImageUpload(file);
     if (!validation.ok) {
       console.log('[upload] validation failed:', validation.message);
@@ -69,31 +66,13 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
     setIngestionMessage('Your image has been accepted.');
     setIngestionState('uploading');
 
-    setIngestionMessage('Loading image into the editor...');
+    setIngestionMessage('Preparing editor...');
     setIngestionState('processing');
 
-    console.log('[upload] reading file as data URL');
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      console.log('[upload] data URL loaded, setting background image');
-      fabric.Image.fromURL(dataUrl, (img) => {
-        img.set({ crossOrigin: 'anonymous' });
-        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
-          scaleX: fabricCanvas.width ? fabricCanvas.width / (img.width || 1) : 1,
-          scaleY: fabricCanvas.height ? fabricCanvas.height / (img.height || 1) : 1,
-        });
-        fabricCanvas.renderAll();
-        console.log('[upload] background image set, updating hasContent');
-        setHasContent(true);
-        setIngestionMessage('');
-        setIngestionState('ready');
-        saveState();
-        toast({ title: 'Image uploaded' });
-      }, { crossOrigin: 'anonymous' });
-    };
-    reader.readAsDataURL(file);
-  }, [fabricCanvas, saveState, toast]);
+    const objectUrl = URL.createObjectURL(file);
+    setPendingUploadUrl(objectUrl);
+    setIngestionMessage('Waiting for editor to initialize...');
+  }, []);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('[upload] handleFileChange:start');
@@ -257,16 +236,41 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         console.log('[hasContent] setting hasContent to true from backgroundImage');
         setHasContent(true);
       }
-
-      // Process pending upload if exists
-      if (pendingUploadRef.current) {
-        console.log('[upload] processing pending upload after canvas init');
-        const pendingFile = pendingUploadRef.current;
-        pendingUploadRef.current = null;
-        processUpload(pendingFile);
-      }
     }
-  }, [fabricCanvas, hasContent, processUpload]);
+  }, [fabricCanvas, hasContent]);
+
+  // Consume pending upload when canvas becomes ready
+  useEffect(() => {
+    console.log('[upload] checking pending consumption:', { isCanvasReady, pendingUploadUrl: Boolean(pendingUploadUrl), fabricCanvas: Boolean(fabricCanvas) });
+    if (!isCanvasReady || !pendingUploadUrl || !fabricCanvas) return;
+
+    console.log('[upload] applying pending image to canvas');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      fabric.Image.fromURL(pendingUploadUrl, (fabricImg) => {
+        fabricImg.set({ crossOrigin: 'anonymous' });
+        fabricCanvas.setBackgroundImage(fabricImg, fabricCanvas.renderAll.bind(fabricCanvas), {
+          scaleX: fabricCanvas.width ? fabricCanvas.width / (fabricImg.width || 1) : 1,
+          scaleY: fabricCanvas.height ? fabricCanvas.height / (fabricImg.height || 1) : 1,
+        });
+        fabricCanvas.renderAll();
+        console.log('[upload] background image applied, setting hasContent');
+        setHasContent(true);
+        setPendingUploadUrl(null);
+        setIngestionState('ready');
+        setIngestionMessage('');
+        saveState();
+        toast({ title: 'Image uploaded' });
+      }, { crossOrigin: 'anonymous' });
+    };
+    img.onerror = () => {
+      console.error('[upload] failed to load pending image');
+      setIngestionState('error');
+      setIngestionError('Failed to load the image. Please try again.');
+    };
+    img.src = pendingUploadUrl;
+  }, [isCanvasReady, pendingUploadUrl, fabricCanvas, saveState, toast]);
 
   // Sync ingestion state with hasContent
   useEffect(() => {
@@ -353,23 +357,35 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
             onChange={handleFileChange}
           />
           <main className="flex-1 relative flex items-center justify-center p-4 sm:p-8 md:p-12 overflow-auto bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-            {ingestionState === 'uploading' || ingestionState === 'processing' ? (
-              <EditorIngestionStatus
-                state={ingestionState}
-                message={ingestionMessage}
-              />
+            {(ingestionState === 'uploading' || ingestionState === 'processing') ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+                <EditorIngestionStatus
+                  state={ingestionState}
+                  message={ingestionMessage}
+                />
+              </div>
             ) : ingestionState === 'error' ? (
-              <EditorIngestionStatus
-                state="error"
-                errorMessage={ingestionError}
-                onRetry={handleUploadClick}
-              />
+              <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+                <EditorIngestionStatus
+                  state="error"
+                  errorMessage={ingestionError}
+                  onRetry={handleUploadClick}
+                />
+              </div>
             ) : hasContent ? (
               <div className="relative shadow-[0_30px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.5)] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition-all duration-500 ease-in-out">
-                <Canvas />
+                <Canvas onReady={handleCanvasReady} />
               </div>
             ) : (
               <EditorEmptyState onUploadClick={handleUploadClick} />
+            )}
+            {hasContent && (ingestionState === 'uploading' || ingestionState === 'processing') && (
+              <div className="absolute inset-0 flex items-center justify-center bg-zinc-50/90 dark:bg-zinc-900/90">
+                <EditorIngestionStatus
+                  state={ingestionState}
+                  message={ingestionMessage}
+                />
+              </div>
             )}
           </main>
         </>
