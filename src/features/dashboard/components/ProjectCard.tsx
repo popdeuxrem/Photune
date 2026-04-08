@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Trash2, Edit3, MoreHorizontal, Calendar, ExternalLink, LayoutGrid, Image as ImageIcon } from 'lucide-react';
 
 import { Button } from '@/shared/components/ui/button';
@@ -53,6 +53,12 @@ export function ProjectCard({ project, onDelete, variant = 'grid' }: ProjectCard
   };
 
   const preview = project.original_image_url;
+  const [imageFailed, setImageFailed] = useState(false);
+  const showPreview = Boolean(preview) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [preview]);
 
   if (variant === 'list') {
     return (
@@ -62,11 +68,12 @@ export function ProjectCard({ project, onDelete, variant = 'grid' }: ProjectCard
           className="flex min-w-0 flex-1 items-center gap-4"
         >
           <div className="relative flex h-20 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950">
-            {preview ? (
+            {showPreview ? (
               <img
-                src={preview}
+                src={preview!}
                 alt={project.name}
                 className="h-full w-full object-cover"
+                onError={() => setImageFailed(true)}
               />
             ) : (
               <ImageIcon className="h-6 w-6 text-zinc-400" />
@@ -135,11 +142,12 @@ export function ProjectCard({ project, onDelete, variant = 'grid' }: ProjectCard
   return (
     <div className="group relative overflow-hidden rounded-[32px] border-none bg-white shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500">
       <div className="aspect-[5/4] bg-zinc-100 relative overflow-hidden">
-        {preview ? (
+        {showPreview ? (
           <img
-            src={preview}
+            src={preview!}
             alt={project.name}
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-zinc-300 gap-2">
