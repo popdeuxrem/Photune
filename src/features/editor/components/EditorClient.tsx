@@ -261,11 +261,13 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
         setIngestionState('ready');
         setIngestionMessage('');
         saveState();
+        URL.revokeObjectURL(pendingUploadUrl);
         toast({ title: 'Image uploaded' });
       }, { crossOrigin: 'anonymous' });
     };
     img.onerror = () => {
       console.error('[upload] failed to load pending image');
+      setPendingUploadUrl(null);
       setIngestionState('error');
       setIngestionError('Failed to load the image. Please try again.');
     };
