@@ -374,8 +374,8 @@ export function EditorClient({ projectId, initialProjectData }: EditorClientProp
           projectName={initialProjectData?.name || 'Untitled Project'} 
         />
       }
-      sidebar={activePanel}
-      panel={hasContent ? activePanel : null}
+      sidebar={<Sidebar />}
+      panel={activePanel}
       mobilePanel={activePanel}
       mobileModeNav={<EditorModeNav activeMode={activeMode} onModeChange={setActiveMode} />}
       canvas={
